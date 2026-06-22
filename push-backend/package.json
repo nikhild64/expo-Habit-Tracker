@@ -10,6 +10,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "expo-server-sdk": "^6.1.0",

@@ -1,22 +1,34 @@
 {
-  "name": "expo-notification-local-and-push",
+  "name": "expo-habit-tracker",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "assets:gen": "node scripts/generate-assets.mjs",
+    "clean": "expo prebuild --clean",
+    "build:android:apk": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat assembleRelease",
+    "build:android:aab": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat bundleRelease",
+    "build:local": "eas build --platform android --local --profile production",
+    "build:local:preview": "eas build --platform android --local --profile preview",
+    "build:eas": "eas build --platform android --profile production",
+    "build:eas:preview": "eas build --platform android --profile preview",
+    "update": "eas update --channel production --message 'update'",
+    "submit": "eas submit --platform android --profile production"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.5",
     "@react-navigation/elements": "^2.9.10",
     "@react-navigation/native": "^7.1.33",
     "expo": "~55.0.26",
+    "expo-clipboard": "~55.0.13",
     "expo-constants": "~55.0.16",
-    "expo-dev-client": "~55.0.35",
     "expo-device": "~55.0.17",
     "expo-font": "~55.0.8",
     "expo-glass-effect": "~55.0.11",
@@ -41,6 +53,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "expo-dev-client": "~55.0.35",
+    "opentype.js": "^2.0.0",
+    "sharp": "^0.35.2",
     "typescript": "~5.9.2"
   },
   "private": true

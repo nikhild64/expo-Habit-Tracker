@@ -33,6 +33,12 @@ yarn-error.*
 # local env files
 .env*.local
 
+# push backend secrets
+push-backend/.env
+push-backend/.env*
+keystore.properties
+google-play-service-account.json
+
 # typescript
 *.tsbuildinfo
 
@@ -43,3 +49,9 @@ app-example
 /android
 
 google-services.json
+
+# Firebase service account keys — never commit these
+*firebase-adminsdk*.json
+habittracker-cae2c-firebase-adminsdk-fbsvc-8f3fb2f2f8.json
+.env
+credentials.json
