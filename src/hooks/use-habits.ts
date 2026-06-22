@@ -5,6 +5,13 @@ import { loadHabits, saveHabits } from '@/lib/habits/storage';
 import type { Habit } from '@/lib/habits/types';
 import { cancelHabitReminders, scheduleHabitReminders } from '@/lib/notifications/schedule';
 
+function randomUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 // ── Date helpers ────────────────────────────────────────────────────────────
 
 function sameDay(a: Date, b: Date): boolean {
@@ -77,7 +84,7 @@ export function useHabits() {
   ): Promise<Habit> {
     const newHabit: Habit = {
       ...draft,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       notificationIds: [],
       streak: 0,
       bestStreak: 0,

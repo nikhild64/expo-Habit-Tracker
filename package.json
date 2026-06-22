@@ -1,7 +1,7 @@
 {
   "name": "expo-habit-tracker",
   "main": "expo-router/entry",
-  "version": "1.0.4",
+  "version": "1.0.11",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -11,8 +11,8 @@
     "lint": "expo lint",
     "assets:gen": "node scripts/generate-assets.mjs",
     "clean": "expo prebuild --clean",
-    "build:android:apk": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat assembleRelease",
-    "build:android:aab": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat bundleRelease",
+    "build:android:apk": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat assembleRelease && cd .. && node scripts/sync-eas-version.js",
+    "build:android:aab": "expo prebuild --platform android && node scripts/bump-version.js && node scripts/setup-signing.js && cd android && gradlew.bat bundleRelease && cd .. && node scripts/sync-eas-version.js",
     "build:local": "eas build --platform android --local --profile production",
     "build:local:preview": "eas build --platform android --local --profile preview",
     "build:eas": "eas build --platform android --profile production",
