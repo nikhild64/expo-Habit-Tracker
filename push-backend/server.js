@@ -332,6 +332,24 @@ button:disabled{opacity:.35;cursor:not-allowed}
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-title">Weekly Summary</div>
+    <div class="hint" style="margin-bottom:8px">Sent automatically every Sunday at 20:00 UTC via Vercel Cron. Deep-links to /weekly-review.</div>
+    <div class="form-row">
+      <div class="field">
+        <label>Title</label>
+        <input id="weekly-title" placeholder="Weekly Review" />
+      </div>
+      <div class="field">
+        <label>Message</label>
+        <input id="weekly-body" placeholder="How did your habits do this week?…" />
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="sendWeeklySummary()">Send Weekly Summary</button>
+    </div>
+  </div>
+
   <div class="section" id="tokens-section">
     <div class="section-header">
       <span class="section-title">Registered Tokens</span>
@@ -520,6 +538,24 @@ button:disabled{opacity:.35;cursor:not-allowed}
     finally { spin(false); }
   }
 
+  async function sendWeeklySummary() {
+    const title = document.getElementById('weekly-title').value.trim() || undefined;
+    const body  = document.getElementById('weekly-body').value.trim() || undefined;
+    addLog('Sending weekly summary…', 'info');
+    spin(true);
+    try {
+      const res = await fetch('/api/weekly-summary', {
+        method: 'POST',
+        headers: adminHeaders(),
+        body: JSON.stringify({ ...(title ? { title } : {}), ...(body ? { body } : {}) }),
+      });
+      const d = await res.json();
+      if (res.ok) addLog('Weekly summary sent to ' + d.sent + ' device(s) ✓', 'ok');
+      else addLog('Failed: ' + d.error, 'err');
+    } catch (e) { addLog('Network error: ' + e.message, 'err'); }
+    finally { spin(false); }
+  }
+
   loadStatus();
   setInterval(loadStatus, 15000);
 </script>
@@ -617,6 +653,36 @@ async function handleDailySummary(req, res) {
 app.get('/api/daily-summary',  requireCronOrAdmin, handleDailySummary);
 // POST — called manually from the dashboard (always requires ADMIN_API_KEY)
 app.post('/api/daily-summary', requireAdmin,       handleDailySummary);
+
+/**
+ * Weekly summary push — triggered by Vercel Cron on Sunday 20:00 UTC (GET) or
+ * manually (POST). Tapping the notification deep-links to /weekly-review in the app.
+ * POST body accepts optional { title, body } to customise the message.
+ */
+async function handleWeeklySummary(req, res) {
+  const {
+    title = 'Weekly Review',
+    body  = "How did your habits do this week? Tap to see your score and start strong tomorrow.",
+  } = req.body ?? {};
+
+  try {
+    const result = await sendToAll({
+      title,
+      body,
+      data: { source: 'weekly-summary', screen: '/weekly-review' },
+    });
+    if (result.sent === 0) return res.status(400).json({ error: 'No registered devices' });
+    console.log(`[weekly-summary] Sent to ${result.sent} device(s)`);
+    return res.json({ success: true, sent: result.sent });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+}
+
+// GET  — called by Vercel Cron (Sunday 20:00 UTC) using CRON_SECRET
+app.get('/api/weekly-summary',  requireCronOrAdmin, handleWeeklySummary);
+// POST — called manually from the dashboard (always requires ADMIN_API_KEY)
+app.post('/api/weekly-summary', requireAdmin,       handleWeeklySummary);
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 

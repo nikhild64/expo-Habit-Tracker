@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
@@ -23,13 +23,20 @@ type AddHabitDraft = Omit<Habit,
   | 'status' | 'pausedAt' | 'freezesAvailable' | 'freezeUsedDates'
 >;
 
+export type MarkDoneResult = {
+  /** True when the completion was added; false when it was removed (toggle-off). */
+  wasAdded: boolean;
+  /** The updated streak length after the toggle. */
+  newStreak: number;
+};
+
 type HabitsContextValue = {
   habits:         Habit[];
   loading:        boolean;
   addHabit:       (draft: AddHabitDraft) => Promise<Habit>;
   updateHabit:    (id: string, updates: Partial<Omit<Habit, 'id' | 'notificationIds'>>) => Promise<void>;
   deleteHabit:    (id: string) => Promise<void>;
-  markDone:       (id: string) => Promise<void>;
+  markDone:       (id: string) => Promise<MarkDoneResult>;
   reorderHabits:  (orderedIds: string[]) => Promise<void>;
   togglePin:      (id: string) => Promise<void>;
   pauseHabit:     (id: string) => Promise<void>;
@@ -44,7 +51,7 @@ const HabitsContext = createContext<HabitsContextValue>({
   addHabit:      async () => { throw new Error('HabitsProvider not mounted'); },
   updateHabit:   async () => {},
   deleteHabit:   async () => {},
-  markDone:      async () => {},
+  markDone:      async () => ({ wasAdded: false, newStreak: 0 }),
   reorderHabits: async () => {},
   togglePin:     async () => {},
   pauseHabit:    async () => {},
@@ -180,9 +187,9 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     commit(habitsRef.current.filter(h => h.id !== id));
   }
 
-  async function markDone(id: string): Promise<void> {
+  async function markDone(id: string): Promise<MarkDoneResult> {
     const habit = habitsRef.current.find(h => h.id === id);
-    if (!habit) return;
+    if (!habit) return { wasAdded: false, newStreak: 0 };
 
     const key            = toDateKey(new Date());
     const completions    = habit.completions    ?? [];
@@ -215,6 +222,8 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           : h,
       ),
     );
+
+    return { wasAdded, newStreak: streak };
   }
 
   async function reorderHabits(orderedIds: string[]): Promise<void> {

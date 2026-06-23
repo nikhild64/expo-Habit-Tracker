@@ -1,5 +1,6 @@
 // Importing setup.ts evaluates it at module load time, registering the
 // foreground notification handler before any screen renders.
+import { GamificationProvider } from '@/contexts/GamificationContext';
 import { HabitsProvider } from '@/contexts/HabitsContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useInAppUpdate } from '@/hooks/use-in-app-update';
@@ -135,7 +136,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <HabitsProvider>
-          <AppNavigator />
+          <GamificationProvider>
+            <AppNavigator />
+          </GamificationProvider>
         </HabitsProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

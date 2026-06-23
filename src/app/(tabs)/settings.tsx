@@ -538,5 +538,6 @@ function createStyles(C: ReturnType<typeof useColors>) {
     },
     resetTitle: { fontSize: 15, fontWeight: '600' },
     resetSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+
   });
 }

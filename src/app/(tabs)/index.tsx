@@ -2,15 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import type { RenderItemParams } from 'react-native-draggable-flatlist';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useGamification } from '@/contexts/GamificationContext';
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
+import { XP_ALL_DONE_BONUS, XP_COMPLETE_HABIT, XP_STREAK_7 } from '@/lib/gamification/rules';
 import { toDateKey } from '@/lib/habits/streak';
 import type { Habit, HabitCategory } from '@/lib/habits/types';
 import { CATEGORY_META } from '@/lib/ui/colors';
@@ -248,8 +250,31 @@ export default function TodayScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
   const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin } = useHabitsStore();
+  const { awardXP } = useGamification();
   const [permDenied, setPermDenied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | 'All'>('All');
+
+  // ── XP Toast ────────────────────────────────────────────────────────────────
+  const [xpToastAmount, setXpToastAmount] = useState(0);
+  const xpOpacity = useRef(new Animated.Value(0)).current;
+  const xpTransY  = useRef(new Animated.Value(0)).current;
+
+  function showXpToast(amount: number) {
+    setXpToastAmount(amount);
+    xpOpacity.setValue(0);
+    xpTransY.setValue(0);
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(xpOpacity,  { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(xpTransY,   { toValue: -12, duration: 250, useNativeDriver: true }),
+      ]),
+      Animated.delay(1000),
+      Animated.parallel([
+        Animated.timing(xpOpacity,  { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(xpTransY,   { toValue: -32, duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }
 
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => setPermDenied(status === 'denied'));
@@ -260,6 +285,25 @@ export default function TodayScreen() {
     () => habits.filter(h => (h.status ?? 'active') === 'active'),
     [habits],
   );
+
+  // ── Completion handler — awards XP then shows toast ────────────────────────
+  const handleDone = useCallback(async (habitId: string) => {
+    const result = await markDone(habitId);
+    if (!result.wasAdded) return;
+
+    // "All done today" if every active habit is now completed
+    const allDoneNow = activeHabits.every(h =>
+      h.id === habitId ? true : isDoneToday(h),
+    );
+
+    let xpAmount = XP_COMPLETE_HABIT;
+    if (allDoneNow)                                            xpAmount += XP_ALL_DONE_BONUS;
+    if (result.newStreak > 0 && result.newStreak % 7 === 0)   xpAmount += XP_STREAK_7;
+
+    await awardXP(xpAmount, { allHabitsDone: allDoneNow }, activeHabits);
+    showXpToast(xpAmount);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markDone, awardXP, activeHabits]);
 
   // Categories that actually have active habits (to avoid showing empty chips)
   const presentCategories = useMemo(() => {
@@ -391,7 +435,7 @@ export default function TodayScreen() {
                 drag={drag}
                 isActive={isActive}
                 onPress={() => router.push({ pathname: '/habit/[id]', params: { id: h.id } })}
-                onDone={() => markDone(h.id)}
+                onDone={() => handleDone(h.id)}
                 onPin={() => togglePin(h.id)}
                 onDelete={() => deleteHabit(h.id)}
               />
@@ -406,6 +450,20 @@ export default function TodayScreen() {
         ) : null}
         ListFooterComponent={<View style={{ height: 24 }} />}
       />
+
+      {/* ── XP toast overlay ──────────────────────────────────────────────── */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          s.xpToastWrap,
+          { opacity: xpOpacity, transform: [{ translateY: xpTransY }] },
+        ]}
+      >
+        <View style={s.xpToast}>
+          <Ionicons name="star" size={13} color="#F59E0B" />
+          <Text style={s.xpToastText}>+{xpToastAmount} XP</Text>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -434,6 +492,19 @@ function createStyles(C: Colors) {
     streakLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
 
     listLabel: { fontSize: 13, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 8, paddingBottom: 8, paddingHorizontal: 16 },
+
+    xpToastWrap: {
+      position: 'absolute', bottom: 96, left: 0, right: 0,
+      alignItems: 'center',
+    },
+    xpToast: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: 'rgba(28,25,23,0.92)',
+      borderRadius: 24, paddingHorizontal: 18, paddingVertical: 10,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25, shadowRadius: 8, elevation: 8,
+    },
+    xpToastText: { fontSize: 15, fontWeight: '700', color: '#F59E0B', letterSpacing: 0.5 },
 
     catChip: {
       flexDirection: 'row', alignItems: 'center', gap: 5,

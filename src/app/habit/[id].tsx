@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useGamification } from '@/contexts/GamificationContext';
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
+import { XP_COMPLETE_HABIT } from '@/lib/gamification/rules';
 import { toDateKey } from '@/lib/habits/streak';
 import { computeHabitStats } from '@/lib/habits/stats';
 import type { Habit } from '@/lib/habits/types';
@@ -166,6 +168,7 @@ export default function HabitDetailScreen() {
   const cal = useMemo(() => createCalStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { habits, markDone, deleteHabit, pauseHabit, archiveHabit, restoreHabit } = useHabitsStore();
+  const { awardXP } = useGamification();
 
   const habit = habits.find(h => h.id === id);
 
@@ -266,7 +269,12 @@ export default function HabitDetailScreen() {
         {/* ── Mark Done (disabled when paused) ── */}
         <TouchableOpacity
           style={[styles.doneBtn, done && styles.doneBtnDone, habit.status === 'paused' && { opacity: 0.4 }]}
-          onPress={() => markDone(habit.id)}
+          onPress={async () => {
+            const result = await markDone(habit.id);
+            if (result.wasAdded) {
+              awardXP(XP_COMPLETE_HABIT, {}, habits).catch(console.error);
+            }
+          }}
           disabled={done || habit.status === 'paused'}
           activeOpacity={0.8}
         >
