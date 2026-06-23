@@ -18,29 +18,36 @@ function randomUUID(): string {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type AddHabitDraft = Omit<Habit,
-  'id' | 'notificationIds' | 'streak' | 'bestStreak' | 'lastCompletedISO' | 'completions' | 'createdAt'
+  'id' | 'notificationIds' | 'streak' | 'bestStreak' | 'lastCompletedISO' |
+  'completions' | 'createdAt' | 'sortOrder' | 'pinned'
 >;
 
 type HabitsContextValue = {
   habits: Habit[];
   loading: boolean;
-  addHabit:    (draft: AddHabitDraft) => Promise<Habit>;
-  updateHabit: (id: string, updates: Partial<Omit<Habit, 'id' | 'notificationIds'>>) => Promise<void>;
-  deleteHabit: (id: string) => Promise<void>;
-  markDone:    (id: string) => Promise<void>;
+  addHabit:       (draft: AddHabitDraft) => Promise<Habit>;
+  updateHabit:    (id: string, updates: Partial<Omit<Habit, 'id' | 'notificationIds'>>) => Promise<void>;
+  deleteHabit:    (id: string) => Promise<void>;
+  markDone:       (id: string) => Promise<void>;
+  /** Persists a new display order; `orderedIds` is the full list in the desired order. */
+  reorderHabits:  (orderedIds: string[]) => Promise<void>;
+  /** Toggles the pinned state of a habit. Pinned habits always sort to the top. */
+  togglePin:      (id: string) => Promise<void>;
   /** Re-reads habits from AsyncStorage and recomputes streaks. Used by the
    *  background notification handler after it writes directly to storage. */
-  loadFresh:   () => Promise<void>;
+  loadFresh:      () => Promise<void>;
 };
 
 const HabitsContext = createContext<HabitsContextValue>({
-  habits:      [],
-  loading:     true,
-  addHabit:    async () => { throw new Error('HabitsProvider not mounted'); },
-  updateHabit: async () => {},
-  deleteHabit: async () => {},
-  markDone:    async () => {},
-  loadFresh:   async () => {},
+  habits:         [],
+  loading:        true,
+  addHabit:       async () => { throw new Error('HabitsProvider not mounted'); },
+  updateHabit:    async () => {},
+  deleteHabit:    async () => {},
+  markDone:       async () => {},
+  reorderHabits:  async () => {},
+  togglePin:      async () => {},
+  loadFresh:      async () => {},
 });
 
 // ── Provider ─────────────────────────────────────────────────────────────────
@@ -97,13 +104,16 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   async function addHabit(draft: AddHabitDraft): Promise<Habit> {
     const newHabit: Habit = {
       ...draft,
-      id:              randomUUID(),
-      notificationIds: [],
-      streak:          0,
-      bestStreak:      0,
+      id:               randomUUID(),
+      notificationIds:  [],
+      streak:           0,
+      bestStreak:       0,
       lastCompletedISO: null,
-      completions:     [],
-      createdAt:       new Date().toISOString(),
+      completions:      [],
+      createdAt:        new Date().toISOString(),
+      // New habit appends at end of the current list, unpinned by default
+      sortOrder:        habitsRef.current.length,
+      pinned:           false,
     };
     const ids = await scheduleHabitReminders(newHabit);
     newHabit.notificationIds = ids;
@@ -160,9 +170,23 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  async function reorderHabits(orderedIds: string[]): Promise<void> {
+    // Assign each habit a new sortOrder matching its position in orderedIds.
+    // Habits not present in orderedIds keep their existing sortOrder.
+    const updated = habitsRef.current.map(h => {
+      const idx = orderedIds.indexOf(h.id);
+      return idx >= 0 ? { ...h, sortOrder: idx } : h;
+    });
+    commit(updated);
+  }
+
+  async function togglePin(id: string): Promise<void> {
+    commit(habitsRef.current.map(h => (h.id === id ? { ...h, pinned: !h.pinned } : h)));
+  }
+
   return (
     <HabitsContext.Provider
-      value={{ habits, loading, addHabit, updateHabit, deleteHabit, markDone, loadFresh }}
+      value={{ habits, loading, addHabit, updateHabit, deleteHabit, markDone, reorderHabits, togglePin, loadFresh }}
     >
       {children}
     </HabitsContext.Provider>

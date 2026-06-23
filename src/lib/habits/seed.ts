@@ -43,6 +43,8 @@ export function buildDummyHabits(): Habit[] {
       lastCompletedISO: TODAY,
       completions: buildCompletions(148, 0),
       createdAt: FIVE_MONTHS,
+      sortOrder: 0,
+      pinned: true,
     },
     {
       id: 'seed-2',
@@ -56,6 +58,8 @@ export function buildDummyHabits(): Habit[] {
       lastCompletedISO: TODAY,
       completions: buildCompletions(89, 0),
       createdAt: FIVE_MONTHS,
+      sortOrder: 1,
+      pinned: false,
     },
     {
       id: 'seed-3',
@@ -73,6 +77,8 @@ export function buildDummyHabits(): Habit[] {
         ...buildCompletions(120, 48),  // past best: 120-day run ending 48 days ago
       ],
       createdAt: FIVE_MONTHS,
+      sortOrder: 2,
+      pinned: false,
     },
     {
       id: 'seed-4',
@@ -84,8 +90,10 @@ export function buildDummyHabits(): Habit[] {
       streak:     62,
       bestStreak: 62,
       lastCompletedISO: YESTERDAY,
-      completions: buildCompletions(62, 1), // not done today — shows realistic mix
+      completions: buildCompletions(62, 1),
       createdAt: FIVE_MONTHS,
+      sortOrder: 3,
+      pinned: false,
     },
     {
       id: 'seed-5',
@@ -99,6 +107,8 @@ export function buildDummyHabits(): Habit[] {
       lastCompletedISO: TODAY,
       completions: buildCompletions(23, 0),
       createdAt: ONE_MONTH,
+      sortOrder: 4,
+      pinned: false,
     },
   ];
 }

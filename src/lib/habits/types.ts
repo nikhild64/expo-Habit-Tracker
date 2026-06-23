@@ -22,4 +22,8 @@ export type Habit = {
    */
   lastCompletedISO: string | null;
   createdAt: string;
+  /** Display order in the Today list. Lower = higher. Pinned habits sort before unpinned. */
+  sortOrder: number;
+  /** Pinned habits always appear at the top of the Today list. */
+  pinned: boolean;
 };

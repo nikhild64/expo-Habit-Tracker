@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+import type { RenderItemParams } from 'react-native-draggable-flatlist';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -60,7 +63,15 @@ function StreakPill({ habit, C }: { habit: Habit; C: Colors }) {
   );
 }
 
-function HabitRow({ habit, C, onPress, onDone }: { habit: Habit; C: Colors; onPress: () => void; onDone: () => void }) {
+function HabitRow({
+  habit, C, onPress, onDone, onPin, drag,
+}: {
+  habit: Habit; C: Colors;
+  onPress: () => void;
+  onDone:  () => void;
+  onPin:   () => void;
+  drag:    () => void;
+}) {
   const done = isDoneToday(habit);
   return (
     <TouchableOpacity
@@ -73,7 +84,9 @@ function HabitRow({ habit, C, onPress, onDone }: { habit: Habit; C: Colors; onPr
         <Ionicons name={habit.icon as never} size={20} color="#fff" />
       </View>
       <View style={hrow.body}>
-        <Text style={[hrow.name, { color: done ? C.textMuted : C.text }]}>{habit.name}</Text>
+        <Text style={[hrow.name, { color: done ? C.textMuted : C.text }]} numberOfLines={1}>
+          {habit.name}
+        </Text>
         <Text style={[hrow.meta, { color: C.textMuted }]}>{formatFreq(habit)}</Text>
       </View>
       {habit.streak > 0 && (
@@ -82,22 +95,55 @@ function HabitRow({ habit, C, onPress, onDone }: { habit: Habit; C: Colors; onPr
           <Text style={[hrow.badgeNum, { color: C.streak }]}>{habit.streak}</Text>
         </View>
       )}
+
+      {/* Pin toggle */}
+      <TouchableOpacity
+        onPress={e => { e.stopPropagation(); onPin(); }}
+        style={hrow.iconBtn}
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+      >
+        <Ionicons
+          name={habit.pinned ? 'bookmark' : 'bookmark-outline'}
+          size={15}
+          color={habit.pinned ? C.tint : C.border}
+        />
+      </TouchableOpacity>
+
+      {/* Done checkbox */}
       <TouchableOpacity
         onPress={e => { e.stopPropagation(); onDone(); }}
         style={[hrow.doneBtn, { borderColor: C.border }, done && { backgroundColor: C.done, borderColor: C.done }]}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
       >
         {done && <Ionicons name="checkmark" size={16} color="#fff" />}
+      </TouchableOpacity>
+
+      {/* Drag handle — long-press to start reorder */}
+      <TouchableOpacity
+        onLongPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => null);
+          drag();
+        }}
+        delayLongPress={200}
+        style={hrow.iconBtn}
+        hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+      >
+        <Ionicons name="reorder-three-outline" size={20} color={C.textMuted} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 }
 
 function SwipeableHabitRow({
-  habit, C, onPress, onDone, onDelete,
+  habit, C, onPress, onDone, onPin, onDelete, drag, isActive,
 }: {
   habit: Habit; C: Colors;
-  onPress: () => void; onDone: () => void; onDelete: () => void;
+  onPress:  () => void;
+  onDone:   () => void;
+  onPin:    () => void;
+  onDelete: () => void;
+  drag:     () => void;
+  isActive: boolean;
 }) {
   const swipeRef = useRef<any>(null);
   const measuredH = useRef(0);
@@ -147,12 +193,13 @@ function SwipeableHabitRow({
     >
       <Swipeable
         ref={swipeRef}
+        enabled={!isActive}
         renderRightActions={renderRightActions}
         friction={2}
         overshootRight={false}
         rightThreshold={40}
       >
-        <HabitRow habit={habit} C={C} onPress={onPress} onDone={onDone} />
+        <HabitRow habit={habit} C={C} onPress={onPress} onDone={onDone} onPin={onPin} drag={drag} />
       </Swipeable>
     </Animated.View>
   );
@@ -179,7 +226,7 @@ function EmptyState({ C }: { C: Colors }) {
 export default function TodayScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits, loading, markDone, deleteHabit } = useHabitsStore();
+  const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin } = useHabitsStore();
   const [permDenied, setPermDenied] = useState(false);
 
   // Check notification permission on mount. No loadFresh needed —
@@ -187,6 +234,16 @@ export default function TodayScreen() {
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => setPermDenied(status === 'denied'));
   }, []);
+
+  // Pinned habits always appear first; within each group sort by sortOrder.
+  const sortedHabits = useMemo(
+    () =>
+      [...habits].sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      }),
+    [habits],
+  );
 
   const doneCount = habits.filter(isDoneToday).length;
   const total = habits.length;
@@ -249,21 +306,29 @@ export default function TodayScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <FlatList
-        data={habits}
+      <DraggableFlatList<Habit>
+        data={sortedHabits}
         keyExtractor={h => h.id}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item: h }) => (
-          <View style={{ paddingHorizontal: 16 }}>
-            <SwipeableHabitRow
-              habit={h} C={C}
-              onPress={() => router.push({ pathname: '/habit/[id]', params: { id: h.id } })}
-              onDone={() => markDone(h.id)}
-              onDelete={() => deleteHabit(h.id)}
-            />
-          </View>
+        onDragEnd={({ data }) => {
+          Haptics.selectionAsync().catch(() => null);
+          reorderHabits(data.map(h => h.id));
+        }}
+        renderItem={({ item: h, drag, isActive }: RenderItemParams<Habit>) => (
+          <ScaleDecorator>
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <SwipeableHabitRow
+                habit={h} C={C}
+                drag={drag}
+                isActive={isActive}
+                onPress={() => router.push({ pathname: '/habit/[id]', params: { id: h.id } })}
+                onDone={() => markDone(h.id)}
+                onPin={() => togglePin(h.id)}
+                onDelete={() => deleteHabit(h.id)}
+              />
+            </View>
+          </ScaleDecorator>
         )}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={!loading ? (
           <View style={{ paddingHorizontal: 16 }}>
@@ -313,7 +378,7 @@ const pill = StyleSheet.create({
 });
 
 const hrow = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, padding: 14, gap: 12, overflow: 'hidden' },
+  card: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, padding: 14, gap: 8, overflow: 'hidden' },
   accent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, gap: 3 },
@@ -321,6 +386,7 @@ const hrow = StyleSheet.create({
   meta: { fontSize: 12 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   badgeNum: { fontSize: 12, fontWeight: '700' },
+  iconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   doneBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });
 
