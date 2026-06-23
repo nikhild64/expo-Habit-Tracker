@@ -1,6 +1,7 @@
 // Importing setup.ts evaluates it at module load time, registering the
 // foreground notification handler before any screen renders.
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { useInAppUpdate } from '@/hooks/use-in-app-update';
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
 import { snoozeHabitReminder } from '@/lib/notifications/schedule';
 import {
@@ -94,6 +95,8 @@ async function handleNotificationResponse(
 }
 
 function AppNavigator() {
+  useInAppUpdate();
+
   useEffect(() => {
     // Show onboarding on first launch before anything else.
     hasSeenOnboarding().then(seen => {
