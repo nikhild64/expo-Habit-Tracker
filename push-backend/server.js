@@ -7,10 +7,28 @@ import { Redis } from '@upstash/redis';
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
-const DAILY_SUMMARY_HOUR = parseInt(process.env.DAILY_SUMMARY_HOUR || '9', 10);
-const TOKENS_KEY = 'habit_tracker:push_tokens';
+const TOKENS_KEY     = 'habit_tracker:push_tokens';
 const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || null;
 const DEVICE_API_KEY = process.env.DEVICE_API_KEY || null;
+
+/**
+ * Vercel automatically injects CRON_SECRET as an env var on every deployment
+ * and sends it as "Authorization: Bearer <secret>" on each cron invocation.
+ * We read it here so the cron endpoint can validate it without needing the
+ * privileged ADMIN_API_KEY.
+ */
+const CRON_SECRET = process.env.CRON_SECRET || null;
+
+// Schedule is driven by vercel.json cron (30 3 * * * = 03:30 UTC = 09:00 IST).
+// These constants are only used for the admin dashboard display.
+const DAILY_SUMMARY_UTC_HOUR   = parseInt(process.env.DAILY_SUMMARY_UTC_HOUR   || '3',  10);
+const DAILY_SUMMARY_UTC_MINUTE = parseInt(process.env.DAILY_SUMMARY_UTC_MINUTE || '30', 10);
+
+function formatISTFromUTC(utcHour, utcMinute) {
+  const ist = (utcHour * 60 + utcMinute + 330) % (24 * 60); // IST = UTC+5:30
+  return `${String(Math.floor(ist / 60)).padStart(2, '0')}:${String(ist % 60).padStart(2, '0')} IST`;
+}
+const DAILY_SUMMARY_IST = formatISTFromUTC(DAILY_SUMMARY_UTC_HOUR, DAILY_SUMMARY_UTC_MINUTE);
 
 /** Extracts the API key from common header locations. */
 function extractKey(req) {
@@ -47,6 +65,26 @@ function requireDevice(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized — invalid device key.' });
   }
   next();
+}
+
+/**
+ * Cron-or-admin access — used only for GET /api/daily-summary.
+ *
+ * Accepts two callers:
+ *  1. ADMIN_API_KEY  — manual "Send Daily Summary" trigger from the dashboard
+ *  2. CRON_SECRET    — Vercel Cron, which automatically injects its own secret
+ *                      as "Authorization: Bearer <CRON_SECRET>" on every run.
+ *                      Without this, the cron silently returns 401 in production
+ *                      because it never sends ADMIN_API_KEY.
+ *
+ * Falls through with no keys set (local dev / staging without auth).
+ */
+function requireCronOrAdmin(req, res, next) {
+  if (!ADMIN_API_KEY && !CRON_SECRET) { next(); return; }
+  const k = extractKey(req);
+  if (ADMIN_API_KEY && k === ADMIN_API_KEY) { next(); return; }
+  if (CRON_SECRET   && k === CRON_SECRET)   { next(); return; }
+  return res.status(401).json({ error: 'Unauthorized — missing or invalid cron/admin key.' });
 }
 
 // ── Clients ───────────────────────────────────────────────────────────────────
@@ -246,7 +284,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
     </div>
     <div class="card">
       <div class="card-value" id="summary-hour">—</div>
-      <div class="card-label">Daily Summary (UTC hour)</div>
+      <div class="card-label">Daily Summary (IST)</div>
     </div>
   </div>
 
@@ -423,7 +461,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
       if (!res.ok) throw new Error('Status ' + res.status);
       const data = await res.json();
       document.getElementById('device-count').textContent = data.registeredDevices;
-      document.getElementById('summary-hour').textContent = String(data.dailySummaryHour).padStart(2, '0') + ':00';
+      document.getElementById('summary-hour').textContent = data.dailySummaryIST || (String(data.dailySummaryHour).padStart(2, '0') + ':00');
       document.getElementById('conn-status').innerHTML = '<span class="dot"></span>Connected';
       renderTokens(data.tokens || []);
     } catch (e) {
@@ -500,7 +538,16 @@ app.get('/status', requireAdmin, async (_req, res) => {
   try {
     const count = await redis.scard(TOKENS_KEY);
     const tokens = count > 0 ? await redis.smembers(TOKENS_KEY) : [];
-    res.json({ status: 'ok', registeredDevices: count, dailySummaryHour: DAILY_SUMMARY_HOUR, tokens });
+    res.json({
+      status: 'ok',
+      registeredDevices: count,
+      // Both UTC (for cron debugging) and IST (for display)
+      dailySummaryUTC: `${String(DAILY_SUMMARY_UTC_HOUR).padStart(2,'0')}:${String(DAILY_SUMMARY_UTC_MINUTE).padStart(2,'0')} UTC`,
+      dailySummaryIST: DAILY_SUMMARY_IST,
+      // Keep legacy key so old dashboard JS doesn't break
+      dailySummaryHour: DAILY_SUMMARY_UTC_HOUR,
+      tokens,
+    });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -566,8 +613,10 @@ async function handleDailySummary(req, res) {
   }
 }
 
-app.get('/api/daily-summary', requireAdmin, handleDailySummary);   // Vercel Cron calls GET
-app.post('/api/daily-summary', requireAdmin, handleDailySummary);  // Dashboard calls POST
+// GET  — called by Vercel Cron using CRON_SECRET, or manually with ADMIN_API_KEY
+app.get('/api/daily-summary',  requireCronOrAdmin, handleDailySummary);
+// POST — called manually from the dashboard (always requires ADMIN_API_KEY)
+app.post('/api/daily-summary', requireAdmin,       handleDailySummary);
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
