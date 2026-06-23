@@ -37,13 +37,17 @@ async function markHabitDoneFromNotification(habitId: string): Promise<void> {
   const { streak, bestStreak }     = computeStreak(newCompletions);
   const lastCompletedISO           = new Date().toISOString();
 
-  await saveHabits(
-    habits.map(h =>
-      h.id === habitId
-        ? { ...h, completions: newCompletions, streak, bestStreak, lastCompletedISO }
-        : h,
-    ),
+  const updated = habits.map(h =>
+    h.id === habitId
+      ? { ...h, completions: newCompletions, streak, bestStreak, lastCompletedISO }
+      : h,
   );
+  await saveHabits(updated);
+
+  // Sync badge immediately so it decrements without the user opening the app.
+  const { isDoneToday } = await import('@/lib/habits/streak');
+  const pending = updated.filter(h => (h.status ?? 'active') === 'active' && !isDoneToday(h)).length;
+  await Notifications.setBadgeCountAsync(pending).catch(() => null);
 }
 
 /**

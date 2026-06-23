@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
 import { toDateKey } from '@/lib/habits/streak';
+import { computeHabitStats } from '@/lib/habits/stats';
 import type { Habit } from '@/lib/habits/types';
 import type { Colors } from '@/lib/ui/theme';
 
@@ -204,6 +205,16 @@ export default function HabitDetailScreen() {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 
+  const stats = useMemo(
+    () => computeHabitStats(habit.completions ?? [], habit.createdAt),
+    [habit.completions, habit.createdAt],
+  );
+
+  const momentumColor =
+    stats.momentum >= 71 ? C.done :
+    stats.momentum >= 41 ? C.streak :
+    C.danger;
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       {/* ── Header ── */}
@@ -295,6 +306,63 @@ export default function HabitDetailScreen() {
             </View>
           );
         })()}
+
+        {/* ── Statistics ── */}
+        <Text style={styles.sectionLabel}>Statistics</Text>
+        {habit.completions.length >= 3 ? (
+          <View style={[styles.statsSection, { backgroundColor: C.surface, borderColor: C.border }]}>
+
+            {/* Completion rate bars — 7 / 30 / 90 days */}
+            <View style={styles.rateGrid}>
+              {([
+                { label: '7 days',  rate: stats.rate7d  },
+                { label: '30 days', rate: stats.rate30d },
+                { label: '90 days', rate: stats.rate90d },
+              ] as const).map(({ label, rate }) => (
+                <View key={label} style={styles.rateCell}>
+                  <Text style={styles.ratePct}>{Math.round(rate * 100)}%</Text>
+                  <View style={styles.rateTrack}>
+                    <View style={[styles.rateFill, {
+                      width: `${Math.max(4, Math.round(rate * 100))}%` as unknown as number,
+                      backgroundColor: habit.color,
+                    }]} />
+                  </View>
+                  <Text style={styles.rateLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.statsSectionDivider} />
+
+            {/* Bottom metrics — Total / Best Day / Momentum */}
+            <View style={styles.metricsRow}>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricValue}>{stats.total}</Text>
+                <Text style={styles.metricLabel}>Total</Text>
+              </View>
+              <View style={[styles.metricCell, styles.metricBorder]}>
+                <Text style={styles.metricValue}>{stats.bestDay ?? '—'}</Text>
+                <Text style={styles.metricLabel}>Best day</Text>
+              </View>
+              <View style={[styles.metricCell, styles.metricBorder]}>
+                <View style={styles.momentumRow}>
+                  <Text style={[styles.metricValue, { color: momentumColor }]}>
+                    {stats.momentum}
+                  </Text>
+                  <Text style={[styles.momentumMax, { color: C.textMuted }]}>/100</Text>
+                </View>
+                <Text style={styles.metricLabel}>Momentum</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.statsSection, styles.statsSectionEmpty, { backgroundColor: C.surface, borderColor: C.border }]}>
+            <Ionicons name="stats-chart-outline" size={22} color={C.textMuted} />
+            <Text style={[styles.metricLabel, { textAlign: 'center' }]}>
+              Track for a few more days to unlock statistics
+            </Text>
+          </View>
+        )}
 
         {/* ── Calendar streak view ── */}
         <Text style={styles.sectionLabel}>Streak History</Text>
@@ -473,6 +541,30 @@ function createStyles(C: Colors) { return StyleSheet.create({
     borderWidth: 1, borderColor: '#BFDBFE',
   },
   freezeCalloutText: { flex: 1, fontSize: 13, color: '#2563EB', fontWeight: '500', lineHeight: 18 },
+
+  // Statistics section
+  statsSection: {
+    borderRadius: 16, borderWidth: 1, overflow: 'hidden', padding: 16, gap: 0,
+  },
+  statsSectionEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20,
+  },
+  statsSectionDivider: { height: 1, backgroundColor: C.border, marginVertical: 14 },
+
+  rateGrid: { flexDirection: 'row', gap: 4 },
+  rateCell: { flex: 1, gap: 6 },
+  ratePct:  { fontSize: 18, fontWeight: '700', color: C.text },
+  rateTrack: { height: 5, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' },
+  rateFill:  { height: 5, borderRadius: 3 },
+  rateLabel: { fontSize: 11, color: C.textMuted, fontWeight: '500' },
+
+  metricsRow: { flexDirection: 'row' },
+  metricCell: { flex: 1, alignItems: 'center', gap: 3 },
+  metricBorder: { borderLeftWidth: 1, borderLeftColor: C.border },
+  metricValue: { fontSize: 18, fontWeight: '700', color: C.text },
+  metricLabel: { fontSize: 11, color: C.textMuted, fontWeight: '500' },
+  momentumRow: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
+  momentumMax: { fontSize: 11, fontWeight: '500' },
 
   actionsCard: {
     borderRadius: 14, borderWidth: 1, overflow: 'hidden',
