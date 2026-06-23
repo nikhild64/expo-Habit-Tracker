@@ -40,6 +40,23 @@ function migrateHabit(h: Habit, index: number): Habit {
     out = { ...out, pinned: false };
   }
 
+  // v3 → v4: category + status + pausedAt + freeze fields
+  if (out.category === undefined || out.category === null) {
+    out = { ...out, category: 'Other' };
+  }
+  if (out.status === undefined || out.status === null) {
+    out = { ...out, status: 'active' };
+  }
+  if (!Object.prototype.hasOwnProperty.call(out, 'pausedAt')) {
+    out = { ...out, pausedAt: null };
+  }
+  if (out.freezesAvailable === undefined || out.freezesAvailable === null) {
+    out = { ...out, freezesAvailable: 1 };
+  }
+  if (!Array.isArray(out.freezeUsedDates)) {
+    out = { ...out, freezeUsedDates: [] };
+  }
+
   return out;
 }
 

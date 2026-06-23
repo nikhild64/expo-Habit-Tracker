@@ -8,6 +8,7 @@ import { Alert, DevSettings, Modal, Platform, ScrollView, StatusBar, StyleSheet,
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ClockFace } from '@/components/ClockFace';
+import { useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors, useTheme } from '@/contexts/ThemeContext';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import {
@@ -47,6 +48,8 @@ export default function SettingsScreen() {
   const C = useColors();
   const { isDark, toggleTheme } = useTheme();
   const { token, permissionStatus, refresh } = usePushNotifications();
+  const { habits, restoreHabit, deleteHabit } = useHabitsStore();
+  const archivedHabits = habits.filter(h => h.status === 'archived');
   const [quietHours, setQuietHoursState] = useState<QuietHours>(DEFAULT_QUIET_HOURS);
   const [exactAlarmStatus, setExactAlarmStatus] = useState<'not-applicable' | 'granted' | 'revoked'>('not-applicable');
   const [activePicker, setActivePicker] = useState<'start' | 'end' | null>(null);
@@ -381,6 +384,46 @@ export default function SettingsScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
               </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* ── Archived Habits ── */}
+        {archivedHabits.length > 0 && (
+          <>
+            <SectionLabel label="Archived Habits" C={C} />
+            <View style={s.card}>
+              {archivedHabits.map((h, i) => (
+                <View
+                  key={h.id}
+                  style={[s.row, i < archivedHabits.length - 1 && s.rowBorder]}
+                >
+                  <View style={[s.rowIcon, { backgroundColor: h.color + '22' }]}>
+                    <Ionicons name={h.icon as never} size={16} color={h.color} />
+                  </View>
+                  <Text style={[s.rowLabel, { color: C.textSecondary }]} numberOfLines={1}>
+                    {h.name}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => restoreHabit(h.id)}
+                    style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: C.tintLight }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: C.tint }}>Restore</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert('Delete habit', `Permanently delete "${h.name}"? This cannot be undone.`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => deleteHabit(h.id) },
+                      ])
+                    }
+                    style={{ padding: 4 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={C.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
           </>
         )}

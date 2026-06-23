@@ -164,9 +164,7 @@ export default function HabitDetailScreen() {
   const styles = useMemo(() => createStyles(C), [C]);
   const cal = useMemo(() => createCalStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { habits, markDone, deleteHabit } = useHabitsStore();
-  // Global HabitsContext keeps state in sync across all screens automatically —
-  // no useFocusEffect / loadFresh needed.
+  const { habits, markDone, deleteHabit, pauseHabit, archiveHabit, restoreHabit } = useHabitsStore();
 
   const habit = habits.find(h => h.id === id);
 
@@ -244,11 +242,21 @@ export default function HabitDetailScreen() {
           <StatBox value={createdDate} label="Started" icon="calendar-outline" />
         </View>
 
-        {/* ── Mark Done ── */}
+        {/* ── Paused banner ── */}
+        {habit.status === 'paused' && (
+          <View style={styles.pausedBanner}>
+            <Ionicons name="pause-circle" size={16} color="#EA580C" />
+            <Text style={styles.pausedBannerText}>
+              Habit paused — notifications and streak tracking are suspended.
+            </Text>
+          </View>
+        )}
+
+        {/* ── Mark Done (disabled when paused) ── */}
         <TouchableOpacity
-          style={[styles.doneBtn, done && styles.doneBtnDone]}
+          style={[styles.doneBtn, done && styles.doneBtnDone, habit.status === 'paused' && { opacity: 0.4 }]}
           onPress={() => markDone(habit.id)}
-          disabled={done}
+          disabled={done || habit.status === 'paused'}
           activeOpacity={0.8}
         >
           <Ionicons
@@ -271,15 +279,119 @@ export default function HabitDetailScreen() {
           </View>
         )}
 
+        {/* ── Freeze status callout ── */}
+        {(() => {
+          const freezes    = habit.freezesAvailable ?? 0;
+          const yesterday  = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+          const usedYest   = (habit.freezeUsedDates ?? []).includes(yesterday);
+          if (!usedYest && freezes === 0) return null;
+          const label = usedYest
+            ? `Freeze used yesterday — streak protected · ${freezes} ${freezes === 1 ? 'token' : 'tokens'} left`
+            : `${freezes} streak ${freezes === 1 ? 'freeze' : 'freezes'} available — ${freezes === 1 ? 'one' : freezes} missed day${freezes > 1 ? 's' : ''} covered`;
+          return (
+            <View style={styles.freezeCallout}>
+              <Ionicons name="snow-outline" size={16} color="#3B82F6" />
+              <Text style={styles.freezeCalloutText}>{label}</Text>
+            </View>
+          );
+        })()}
+
         {/* ── Calendar streak view ── */}
         <Text style={styles.sectionLabel}>Streak History</Text>
         <StreakCalendar habit={habit} />
 
-        {/* ── Delete ── */}
-        <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={16} color={C.danger} />
-          <Text style={styles.deleteText}>Delete habit</Text>
-        </TouchableOpacity>
+        {/* ── Actions ── */}
+        <Text style={styles.sectionLabel}>Actions</Text>
+        <View style={[styles.actionsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+          {/* Pause / Resume */}
+          {habit.status === 'active' && (
+            <TouchableOpacity
+              style={[styles.actionRow, styles.actionBorder]}
+              onPress={() => {
+                Alert.alert('Pause habit', `Pause "${habit.name}"? Notifications will be suspended and your streak won't decay.`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Pause', onPress: () => pauseHabit(habit.id) },
+                ]);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
+                <Ionicons name="pause-circle-outline" size={18} color="#EA580C" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionLabel, { color: C.text }]}>Pause Habit</Text>
+                <Text style={styles.actionSub}>Suspend notifications, freeze streak</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+            </TouchableOpacity>
+          )}
+          {habit.status === 'paused' && (
+            <TouchableOpacity
+              style={[styles.actionRow, styles.actionBorder]}
+              onPress={() => restoreHabit(habit.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: C.doneLight }]}>
+                <Ionicons name="play-circle-outline" size={18} color={C.done} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionLabel, { color: C.text }]}>Resume Habit</Text>
+                <Text style={styles.actionSub}>Restore notifications and tracking</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+            </TouchableOpacity>
+          )}
+
+          {/* Archive / Restore */}
+          {habit.status !== 'archived' ? (
+            <TouchableOpacity
+              style={[styles.actionRow, styles.actionBorder]}
+              onPress={() => {
+                Alert.alert('Archive habit', `Archive "${habit.name}"? It will be hidden but your history is preserved.`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Archive', onPress: () => { archiveHabit(habit.id); router.back(); } },
+                ]);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: C.surfaceAlt }]}>
+                <Ionicons name="archive-outline" size={18} color={C.textSecondary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionLabel, { color: C.text }]}>Archive Habit</Text>
+                <Text style={styles.actionSub}>Hide it, keep history intact</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.actionRow, styles.actionBorder]}
+              onPress={() => { restoreHabit(habit.id); router.back(); }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: C.tintLight }]}>
+                <Ionicons name="refresh-circle-outline" size={18} color={C.tint} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.actionLabel, { color: C.text }]}>Restore Habit</Text>
+                <Text style={styles.actionSub}>Make it active again</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+            </TouchableOpacity>
+          )}
+
+          {/* Delete */}
+          <TouchableOpacity style={styles.actionRow} onPress={confirmDelete} activeOpacity={0.7}>
+            <View style={[styles.actionIcon, { backgroundColor: C.dangerLight }]}>
+              <Ionicons name="trash-outline" size={18} color={C.danger} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.actionLabel, { color: C.danger }]}>Delete Habit</Text>
+              <Text style={styles.actionSub}>Permanently remove all data</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.danger} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -348,13 +460,28 @@ function createStyles(C: Colors) { return StyleSheet.create({
     marginTop: 4,
   },
 
-  deleteBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 14, borderRadius: 12,
-    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
-    marginTop: 4,
+  pausedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFF7ED', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: '#FED7AA',
   },
-  deleteText: { fontSize: 14, fontWeight: '500', color: C.danger },
+  pausedBannerText: { flex: 1, fontSize: 13, color: '#EA580C', fontWeight: '500', lineHeight: 18 },
+
+  freezeCallout: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#EFF6FF', borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: '#BFDBFE',
+  },
+  freezeCalloutText: { flex: 1, fontSize: 13, color: '#2563EB', fontWeight: '500', lineHeight: 18 },
+
+  actionsCard: {
+    borderRadius: 14, borderWidth: 1, overflow: 'hidden',
+  },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  actionBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
+  actionIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 15, fontWeight: '600' },
+  actionSub: { fontSize: 12, color: C.textMuted, marginTop: 1 },
 
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   notFoundText: { fontSize: 16, color: C.textMuted },

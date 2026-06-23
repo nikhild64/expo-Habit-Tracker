@@ -2,6 +2,17 @@ export type Frequency =
   | { kind: 'daily'; hour: number; minute: number }
   | { kind: 'weekly'; weekdays: number[]; hour: number; minute: number };
 
+export type HabitCategory =
+  | 'Health'
+  | 'Learning'
+  | 'Productivity'
+  | 'Mindfulness'
+  | 'Finance'
+  | 'Relationships'
+  | 'Other';
+
+export type HabitStatus = 'active' | 'paused' | 'archived';
+
 export type Habit = {
   id: string;
   name: string;
@@ -26,4 +37,14 @@ export type Habit = {
   sortOrder: number;
   /** Pinned habits always appear at the top of the Today list. */
   pinned: boolean;
+  /** Which life area this habit belongs to. */
+  category: HabitCategory;
+  /** Active = shown & tracked. Paused = hidden, no decay. Archived = hidden, history preserved. */
+  status: HabitStatus;
+  /** ISO timestamp when the habit was paused, or null. */
+  pausedAt: string | null;
+  /** How many streak-freeze tokens are available (max 3, earned at every 7-day milestone). */
+  freezesAvailable: number;
+  /** ISO date strings (YYYY-MM-DD) for days when a freeze was consumed. */
+  freezeUsedDates: string[];
 };

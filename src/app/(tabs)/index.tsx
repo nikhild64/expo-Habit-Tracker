@@ -11,7 +11,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import type { Habit } from '@/lib/habits/types';
+import { toDateKey } from '@/lib/habits/streak';
+import type { Habit, HabitCategory } from '@/lib/habits/types';
+import { CATEGORY_META } from '@/lib/ui/colors';
 import { openSystemSettings } from '@/lib/notifications/setup';
 import type { Colors } from '@/lib/ui/theme';
 
@@ -42,9 +44,17 @@ function formatFreq(habit: Habit): string {
 
 function StreakPill({ habit, C }: { habit: Habit; C: Colors }) {
   const done = isDoneToday(habit);
+  const yesterday = toDateKey(new Date(Date.now() - 86_400_000));
+  const freezeUsed = (habit.freezeUsedDates ?? []).includes(yesterday);
+  const hasFreeze  = (habit.freezesAvailable ?? 0) > 0;
+
   return (
     <TouchableOpacity
-      style={[pill.wrap, done && { backgroundColor: C.done, borderColor: C.done }]}
+      style={[
+        pill.wrap,
+        done     && { backgroundColor: C.done, borderColor: C.done },
+        freezeUsed && !done && { borderColor: '#3B82F6' },
+      ]}
       onPress={() => router.push({ pathname: '/habit/[id]', params: { id: habit.id } })}
       activeOpacity={0.8}
     >
@@ -54,9 +64,20 @@ function StreakPill({ habit, C }: { habit: Habit; C: Colors }) {
       <View>
         <Text style={[pill.name, { color: done ? '#fff' : C.text }]} numberOfLines={1}>{habit.name}</Text>
         <View style={pill.row}>
-          <Ionicons name="flame" size={11} color={done ? '#fff9' : C.streak} />
-          <Text style={[pill.streakNum, { color: done ? '#fff' : C.streak }]}>{habit.streak}d</Text>
-          {done && <Ionicons name="checkmark-circle" size={12} color="#fff" />}
+          {freezeUsed && !done
+            ? <Ionicons name="snow-outline" size={11} color="#3B82F6" />
+            : <Ionicons name="flame" size={11} color={done ? '#fff9' : C.streak} />
+          }
+          <Text style={[pill.streakNum, { color: done ? '#fff' : freezeUsed ? '#3B82F6' : C.streak }]}>
+            {habit.streak}d
+          </Text>
+          {done     && <Ionicons name="checkmark-circle"  size={12} color="#fff" />}
+          {!done && hasFreeze && !freezeUsed && (
+            <View style={pill.freezeBadge}>
+              <Ionicons name="snow-outline" size={9} color="#3B82F6" />
+              <Text style={pill.freezeNum}>{habit.freezesAvailable}</Text>
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -228,28 +249,41 @@ export default function TodayScreen() {
   const s = useMemo(() => createStyles(C), [C]);
   const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin } = useHabitsStore();
   const [permDenied, setPermDenied] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<HabitCategory | 'All'>('All');
 
-  // Check notification permission on mount. No loadFresh needed —
-  // HabitsContext handles AppState-based re-sync automatically.
   useEffect(() => {
     Notifications.getPermissionsAsync().then(({ status }) => setPermDenied(status === 'denied'));
   }, []);
 
-  // Pinned habits always appear first; within each group sort by sortOrder.
-  const sortedHabits = useMemo(
-    () =>
-      [...habits].sort((a, b) => {
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-      }),
+  // Only active habits appear in the Today tab
+  const activeHabits = useMemo(
+    () => habits.filter(h => (h.status ?? 'active') === 'active'),
     [habits],
   );
 
-  const doneCount = habits.filter(isDoneToday).length;
-  const total = habits.length;
+  // Categories that actually have active habits (to avoid showing empty chips)
+  const presentCategories = useMemo(() => {
+    const seen = new Set<HabitCategory>();
+    activeHabits.forEach(h => seen.add(h.category ?? 'Other'));
+    return Array.from(seen);
+  }, [activeHabits]);
+
+  // Pinned first → sorted by sortOrder, then filtered by selected category
+  const sortedHabits = useMemo(() => {
+    const filtered = selectedCategory === 'All'
+      ? activeHabits
+      : activeHabits.filter(h => (h.category ?? 'Other') === selectedCategory);
+    return [...filtered].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
+  }, [activeHabits, selectedCategory]);
+
+  const doneCount = activeHabits.filter(isDoneToday).length;
+  const total = activeHabits.length;
   const progress = total > 0 ? doneCount / total : 0;
   const allDone = total > 0 && doneCount === total;
-  const habitsWithStreak = habits.filter(h => h.streak > 0);
+  const habitsWithStreak = activeHabits.filter(h => h.streak > 0);
 
   const listHeader = (
     <>
@@ -298,6 +332,41 @@ export default function TodayScreen() {
             </>
           )}
         </View>
+      )}
+
+      {/* Category filter chips — only render when 2+ categories are in use */}
+      {presentCategories.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 4 }}
+        >
+          {/* "All" chip */}
+          <TouchableOpacity
+            style={[s.catChip, selectedCategory === 'All' && { backgroundColor: C.tint, borderColor: C.tint }]}
+            onPress={() => setSelectedCategory('All')}
+          >
+            <Text style={[s.catChipText, { color: selectedCategory === 'All' ? '#fff' : C.textSecondary }]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          {presentCategories.map(cat => {
+            const meta    = CATEGORY_META[cat];
+            const active  = selectedCategory === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[s.catChip, active && { backgroundColor: meta.color, borderColor: meta.color }]}
+                onPress={() => setSelectedCategory(active ? 'All' : cat)}
+              >
+                <Ionicons name={meta.icon as never} size={12} color={active ? '#fff' : meta.color} />
+                <Text style={[s.catChipText, { color: active ? '#fff' : C.textSecondary }]}>
+                  {meta.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       )}
 
       {total > 0 && <Text style={s.listLabel}>Habits</Text>}
@@ -365,6 +434,13 @@ function createStyles(C: Colors) {
     streakLabel: { fontSize: 11, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
 
     listLabel: { fontSize: 13, fontWeight: '600', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.7, paddingTop: 8, paddingBottom: 8, paddingHorizontal: 16 },
+
+    catChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderRadius: 20, borderWidth: 1.5, borderColor: C.border,
+      paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.surface,
+    },
+    catChipText: { fontSize: 12, fontWeight: '600' },
   });
 }
 
@@ -375,6 +451,8 @@ const pill = StyleSheet.create({
   name: { fontSize: 13, fontWeight: '600', maxWidth: 80 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 1 },
   streakNum: { fontSize: 11, fontWeight: '600' },
+  freezeBadge: { flexDirection: 'row', alignItems: 'center', gap: 1, backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 },
+  freezeNum: { fontSize: 9, fontWeight: '700', color: '#3B82F6' },
 });
 
 const hrow = StyleSheet.create({

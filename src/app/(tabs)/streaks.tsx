@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import type { Habit } from '@/lib/habits/types';
 import { toDateKey } from '@/lib/habits/streak';
+import type { Habit, HabitCategory } from '@/lib/habits/types';
+import { CATEGORY_META } from '@/lib/ui/colors';
 import type { Colors } from '@/lib/ui/theme';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -383,14 +384,43 @@ export default function StreaksScreen() {
   const { habits, loading } = useHabitsStore();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  const totalHabits = habits.length;
-  const overallBest = habits.reduce((m, h) => Math.max(m, h.bestStreak), 0);
-  const doneToday = habits.filter(isDoneToday).length;
-  const days = daysSinceEarliest(habits);
-  const { countMap: completionMap, habitMap } = useMemo(
-    () => buildCompletionData(habits),
+  // Archived habits are excluded from all Progress metrics
+  const visibleHabits = useMemo(
+    () => habits.filter(h => (h.status ?? 'active') !== 'archived'),
     [habits],
   );
+
+  const totalHabits = visibleHabits.length;
+  const overallBest = visibleHabits.reduce((m, h) => Math.max(m, h.bestStreak), 0);
+  const doneToday   = visibleHabits.filter(isDoneToday).length;
+  const days        = daysSinceEarliest(visibleHabits);
+  const { countMap: completionMap, habitMap } = useMemo(
+    () => buildCompletionData(visibleHabits),
+    [visibleHabits],
+  );
+
+  // Category breakdown for the current month
+  const categoryBreakdown = useMemo(() => {
+    const now       = new Date();
+    const monthStart = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    const today      = toDateKey(now);
+    const daysElapsed = now.getDate(); // days elapsed so far this month
+
+    const map = new Map<HabitCategory, { completed: number; total: number }>();
+    for (const h of visibleHabits) {
+      const cat     = h.category ?? 'Other';
+      const entry   = map.get(cat) ?? { completed: 0, total: 0 };
+      entry.total   += daysElapsed;
+      entry.completed += (h.completions ?? []).filter(d => d >= monthStart && d <= today).length;
+      map.set(cat, entry);
+    }
+    return Array.from(map.entries())
+      .map(([category, { completed, total }]) => ({
+        category,
+        rate: total > 0 ? completed / total : 0,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+  }, [visibleHabits]);
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
@@ -433,18 +463,40 @@ export default function StreaksScreen() {
             <MonthHeatmap
               completionMap={completionMap}
               totalHabits={totalHabits}
-              habits={habits}
+              habits={visibleHabits}
               onDayPress={setSelectedDay}
             />
+
+            {/* ── Category Breakdown ── */}
+            {categoryBreakdown.length > 1 && (
+              <>
+                <Text style={s.sectionLabel}>By Category</Text>
+                <View style={s.catCard}>
+                  {categoryBreakdown.map(({ category, rate }) => {
+                    const meta = CATEGORY_META[category];
+                    return (
+                      <View key={category} style={s.catRow}>
+                        <View style={[s.catDot, { backgroundColor: meta.color }]} />
+                        <Text style={s.catLabel}>{meta.label}</Text>
+                        <View style={s.catTrack}>
+                          <View style={[s.catFill, { width: `${Math.round(rate * 100)}%` as unknown as number, backgroundColor: meta.color }]} />
+                        </View>
+                        <Text style={s.catPct}>{Math.round(rate * 100)}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             {/* ── Per-habit list ── */}
             <Text style={s.sectionLabel}>All Habits</Text>
             <View style={s.habitList}>
-              {habits.map(h => <HabitStreakRow key={h.id} habit={h} />)}
+              {visibleHabits.map(h => <HabitStreakRow key={h.id} habit={h} />)}
             </View>
 
             <Text style={s.footerNote}>
-              Tracking {days} {days === 1 ? 'day' : 'days'} · {habits.reduce((t, h) => t + h.streak, 0)} total streak days
+              Tracking {days} {days === 1 ? 'day' : 'days'} · {visibleHabits.reduce((t, h) => t + h.streak, 0)} total streak days
             </Text>
           </>
         )}
@@ -452,7 +504,7 @@ export default function StreaksScreen() {
 
       <DayDetailSheet
         dateKey={selectedDay}
-        habits={habits}
+        habits={visibleHabits}
         habitMap={habitMap}
         onClose={() => setSelectedDay(null)}
       />
@@ -558,6 +610,18 @@ function createStyles(C: Colors) { return StyleSheet.create({
   emptyBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
   footerNote: { fontSize: 12, color: C.textMuted, textAlign: 'center', marginTop: 4 },
+
+  // Category breakdown
+  catCard: {
+    backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    padding: 16, gap: 14,
+  },
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  catDot: { width: 8, height: 8, borderRadius: 4 },
+  catLabel: { fontSize: 13, fontWeight: '500', color: C.text, width: 100 },
+  catTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.border, overflow: 'hidden' },
+  catFill:  { height: 6, borderRadius: 3 },
+  catPct:   { fontSize: 12, fontWeight: '600', color: C.textSecondary, width: 36, textAlign: 'right' },
 
   // ── Day detail sheet ──────────────────────────────────────────────────────
   sheetOverlay: {

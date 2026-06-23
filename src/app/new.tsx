@@ -19,9 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClockFace } from '@/components/ClockFace';
 import { useColors } from '@/contexts/ThemeContext';
 import { useHabitsStore } from '@/contexts/HabitsContext';
-import type { Frequency } from '@/lib/habits/types';
-import { HABIT_COLORS, HABIT_ICONS } from '@/lib/ui/colors';
+import type { Frequency, HabitCategory } from '@/lib/habits/types';
+import { CATEGORY_META, HABIT_COLORS, HABIT_ICONS } from '@/lib/ui/colors';
 import type { Colors } from '@/lib/ui/theme';
+
+const CATEGORIES = Object.keys(CATEGORY_META) as HabitCategory[];
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_FULL   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -64,6 +66,7 @@ export default function NewHabitScreen() {
   );
   const [hour, setHour]       = useState(existing?.frequency.hour ?? 8);
   const [minute, setMinute]   = useState(existing?.frequency.minute ?? 0);
+  const [category, setCategory] = useState<HabitCategory>(existing?.category ?? 'Other');
   const [saving, setSaving]   = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [pickerKey, setPickerKey]           = useState(0);
@@ -80,6 +83,7 @@ export default function NewHabitScreen() {
       setHour(existing.frequency.hour);
       setMinute(existing.frequency.minute);
       if (existing.frequency.kind === 'weekly') setWeekdays(existing.frequency.weekdays);
+      setCategory(existing.category ?? 'Other');
     }
   }, [existing?.id]);
 
@@ -102,9 +106,9 @@ export default function NewHabitScreen() {
     setSaving(true);
     try {
       if (existing) {
-        await updateHabit(existing.id, { name: trimmed, icon, color, frequency });
+        await updateHabit(existing.id, { name: trimmed, icon, color, frequency, category });
       } else {
-        await addHabit({ name: trimmed, icon, color, frequency });
+        await addHabit({ name: trimmed, icon, color, frequency, category });
       }
       router.back();
     } catch (e) {
@@ -178,6 +182,32 @@ export default function NewHabitScreen() {
                   {col === color && <Ionicons name="checkmark" size={14} color="#fff" />}
                 </TouchableOpacity>
               ))}
+            </View>
+          </Section>
+
+          {/* Category */}
+          <Section label="Category" C={C}>
+            <View style={s.catGrid}>
+              {CATEGORIES.map(cat => {
+                const meta    = CATEGORY_META[cat];
+                const active  = category === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      s.catChip,
+                      { borderColor: active ? meta.color : C.border, backgroundColor: active ? meta.color + '18' : C.surfaceAlt },
+                    ]}
+                    onPress={() => setCategory(cat)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name={meta.icon as never} size={14} color={active ? meta.color : C.textMuted} />
+                    <Text style={[s.catChipText, { color: active ? meta.color : C.textMuted, fontWeight: active ? '700' : '500' }]}>
+                      {meta.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </Section>
 
@@ -302,6 +332,9 @@ function createStyles(C: Colors) {
     segText: { fontSize: 14 },
     weekRow: { flexDirection: 'row', gap: 6 },
     dayBtn: { flex: 1, alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingVertical: 8, gap: 2 },
+    catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 7 },
+    catChipText: { fontSize: 13 },
     timePill: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14 },
     modalOverlay: { flex: 1, backgroundColor: '#00000070', justifyContent: 'flex-end' },
     modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 4 },

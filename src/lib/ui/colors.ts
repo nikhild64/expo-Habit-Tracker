@@ -1,3 +1,5 @@
+import type { HabitCategory } from '@/lib/habits/types';
+
 export const C = {
   bg: '#FAFAFA',
   surface: '#FFFFFF',
@@ -62,3 +64,14 @@ export const HABIT_ICONS = [
 
 export type HabitColor = (typeof HABIT_COLORS)[number];
 export type HabitIconName = (typeof HABIT_ICONS)[number];
+
+/** Display metadata for each habit category — icon (Ionicons), hex accent colour, label. */
+export const CATEGORY_META: Record<HabitCategory, { icon: string; color: string; label: string }> = {
+  Health:        { icon: 'heart-outline',  color: '#EF4444', label: 'Health' },
+  Learning:      { icon: 'book-outline',   color: '#8B5CF6', label: 'Learning' },
+  Productivity:  { icon: 'flash-outline',  color: '#F97316', label: 'Productivity' },
+  Mindfulness:   { icon: 'leaf-outline',   color: '#16A34A', label: 'Mindfulness' },
+  Finance:       { icon: 'cash-outline',   color: '#CA8A04', label: 'Finance' },
+  Relationships: { icon: 'people-outline', color: '#EC4899', label: 'Relationships' },
+  Other:         { icon: 'apps-outline',   color: '#6B7280', label: 'Other' },
+};
