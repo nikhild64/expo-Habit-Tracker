@@ -126,6 +126,7 @@ function AppNavigator() {
         <Stack.Screen name="habit/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="about"      options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy"    options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="templates"  options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

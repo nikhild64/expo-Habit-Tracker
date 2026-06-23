@@ -240,6 +240,10 @@ function EmptyState({ C }: { C: Colors }) {
         <Ionicons name="add" size={18} color="#fff" />
         <Text style={empty.btnText}>Create first habit</Text>
       </TouchableOpacity>
+      <TouchableOpacity style={[empty.btn, empty.btnSecondary, { backgroundColor: C.surfaceAlt, borderColor: C.border }]} onPress={() => router.push('/templates' as never)} activeOpacity={0.8}>
+        <Ionicons name="grid-outline" size={18} color={C.textSecondary} />
+        <Text style={[empty.btnText, { color: C.textSecondary }]}>Browse Templates</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -554,5 +558,6 @@ const empty = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700' },
   body: { fontSize: 14, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 4 },
+  btnSecondary: { borderWidth: 1 },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
 });

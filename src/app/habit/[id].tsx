@@ -10,6 +10,7 @@ import { useColors } from '@/contexts/ThemeContext';
 import { XP_COMPLETE_HABIT } from '@/lib/gamification/rules';
 import { toDateKey } from '@/lib/habits/streak';
 import { computeHabitStats } from '@/lib/habits/stats';
+import { analyzeReminderEffectiveness } from '@/lib/habits/smart-reminders';
 import type { Habit } from '@/lib/habits/types';
 import type { Colors } from '@/lib/ui/theme';
 
@@ -167,7 +168,7 @@ export default function HabitDetailScreen() {
   const styles = useMemo(() => createStyles(C), [C]);
   const cal = useMemo(() => createCalStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { habits, markDone, deleteHabit, pauseHabit, archiveHabit, restoreHabit } = useHabitsStore();
+  const { habits, markDone, updateHabit, deleteHabit, pauseHabit, archiveHabit, restoreHabit } = useHabitsStore();
   const { awardXP } = useGamification();
 
   const habit = habits.find(h => h.id === id);
@@ -217,6 +218,12 @@ export default function HabitDetailScreen() {
     stats.momentum >= 71 ? C.done :
     stats.momentum >= 41 ? C.streak :
     C.danger;
+
+  const reminderSuggestion = useMemo(
+    () => analyzeReminderEffectiveness(habit),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [habit.completionTimestamps, habit.frequency.hour],
+  );
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -370,6 +377,41 @@ export default function HabitDetailScreen() {
               Track for a few more days to unlock statistics
             </Text>
           </View>
+        )}
+
+        {/* ── Smart Reminder Suggestion ── */}
+        {reminderSuggestion && (
+          <TouchableOpacity
+            style={styles.reminderBanner}
+            activeOpacity={0.85}
+            onPress={() => {
+              Alert.alert(
+                'Update reminder time?',
+                `You complete this habit ${Math.round(reminderSuggestion.suggestedRate * 100)}% of the time when done by ${reminderSuggestion.suggestedLabel}, vs ${Math.round(reminderSuggestion.currentRate * 100)}% at your current ${reminderSuggestion.currentLabel} reminder.\n\nSwitch to ${reminderSuggestion.suggestedLabel}?`,
+                [
+                  { text: 'Keep current', style: 'cancel' },
+                  {
+                    text: `Switch to ${reminderSuggestion.suggestedLabel}`,
+                    onPress: () =>
+                      updateHabit(habit.id, {
+                        frequency: { ...habit.frequency, hour: reminderSuggestion.suggestedHour, minute: 0 },
+                      }),
+                  },
+                ],
+              );
+            }}
+          >
+            <View style={styles.reminderBannerIcon}>
+              <Ionicons name="bulb-outline" size={18} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reminderBannerTitle}>Smarter reminder time available</Text>
+              <Text style={styles.reminderBannerBody}>
+                You complete this habit {Math.round(reminderSuggestion.suggestedRate * 100)}% when done by {reminderSuggestion.suggestedLabel}, vs {Math.round(reminderSuggestion.currentRate * 100)}% at your current {reminderSuggestion.currentLabel} reminder. Tap to update.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+          </TouchableOpacity>
         )}
 
         {/* ── Calendar streak view ── */}
@@ -573,6 +615,19 @@ function createStyles(C: Colors) { return StyleSheet.create({
   metricLabel: { fontSize: 11, color: C.textMuted, fontWeight: '500' },
   momentumRow: { flexDirection: 'row', alignItems: 'baseline', gap: 1 },
   momentumMax: { fontSize: 11, fontWeight: '500' },
+
+  reminderBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#F5F3FF', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#DDD6FE',
+  },
+  reminderBannerIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#EDE9FE',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reminderBannerTitle: { fontSize: 13, fontWeight: '700', color: '#5B21B6', marginBottom: 2 },
+  reminderBannerBody: { fontSize: 12, color: '#6D28D9', lineHeight: 17 },
 
   actionsCard: {
     borderRadius: 14, borderWidth: 1, overflow: 'hidden',
