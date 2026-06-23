@@ -57,6 +57,11 @@ function migrateHabit(h: Habit, index: number): Habit {
     out = { ...out, freezeUsedDates: [] };
   }
 
+  // v4 → v5: completionTimestamps
+  if (!out.completionTimestamps || typeof out.completionTimestamps !== 'object') {
+    out = { ...out, completionTimestamps: {} };
+  }
+
   return out;
 }
 

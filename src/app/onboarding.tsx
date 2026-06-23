@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useColors } from '@/contexts/ThemeContext';
 import { markOnboardingDone } from '@/lib/onboarding';
+import { TEMPLATE_BUNDLES } from '@/lib/habits/templates';
 
 const { width } = Dimensions.get('window');
 
@@ -51,6 +52,17 @@ const slides = [
     subtitle:
       'Watch your streaks grow day by day. Visualise your progress and stay unstoppable.',
     illustration: 'streaks',
+  },
+  {
+    id: 3,
+    bg: '#FFF7ED',
+    accent: '#FED7AA',
+    iconBg: '#EA580C',
+    icon: 'grid-outline' as const,
+    title: 'Choose a\nStarter Pack',
+    subtitle:
+      'Pick a ready-made bundle and go. Dozens of expertly-crafted habits, grouped by goal.',
+    illustration: 'templates',
   },
 ] as const;
 
@@ -109,6 +121,28 @@ function RemindersIllustration() {
         </View>
         <Ionicons name="notifications" size={16} color="#8B5CF6" />
       </View>
+    </View>
+  );
+}
+
+function TemplatesIllustration() {
+  const packs = TEMPLATE_BUNDLES.slice(0, 3);
+  return (
+    <View style={il.tplWrap}>
+      {packs.map((b, i) => (
+        <View key={b.id} style={[il.tplCard, i > 0 && { opacity: 1 - i * 0.15, transform: [{ scale: 1 - i * 0.04 }] }]}>
+          <View style={[il.tplIcon, { backgroundColor: b.color + '22' }]}>
+            <Ionicons name={b.icon as never} size={18} color={b.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={il.tplName}>{b.label}</Text>
+            <Text style={il.tplDesc}>{b.description}</Text>
+          </View>
+          <View style={[il.tplBadge, { backgroundColor: b.color + '22' }]}>
+            <Text style={[il.tplBadgeText, { color: b.color }]}>4 habits</Text>
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -211,9 +245,10 @@ export default function OnboardingScreen() {
 
               {/* Slide-specific illustration */}
               <View style={s.illustrationContent}>
-                {sl.illustration === 'habits' && <HabitsIllustration />}
+                {sl.illustration === 'habits'    && <HabitsIllustration />}
                 {sl.illustration === 'reminders' && <RemindersIllustration />}
-                {sl.illustration === 'streaks' && <StreaksIllustration />}
+                {sl.illustration === 'streaks'   && <StreaksIllustration />}
+                {sl.illustration === 'templates' && <TemplatesIllustration />}
               </View>
             </View>
           </View>
@@ -263,6 +298,21 @@ export default function OnboardingScreen() {
               {!isLast && <Ionicons name="arrow-forward" size={18} color="#fff" />}
             </TouchableOpacity>
           </View>
+
+          {/* On the templates slide, offer a shortcut to browse them */}
+          {isLast && (
+            <TouchableOpacity
+              onPress={async () => {
+                await markOnboardingDone();
+                router.replace('/templates' as never);
+              }}
+              style={s.browseBtn}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="grid-outline" size={16} color={C.textSecondary} />
+              <Text style={[s.browseBtnText, { color: C.textSecondary }]}>Browse Templates</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </View>
@@ -326,6 +376,11 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 15, color: '#64748B', lineHeight: 23, marginTop: -4 },
 
   btnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  browseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10,
+  },
+  browseBtnText: { fontSize: 14, fontWeight: '600' },
   backBtn: {
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#F4F4F5',
@@ -423,4 +478,23 @@ const il = StyleSheet.create({
   statItem: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   statNum: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   statLbl: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+
+  // Templates slide
+  tplWrap: { width: '100%', gap: 10 },
+  tplCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', borderRadius: 16, padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 }, elevation: 4,
+  },
+  tplIcon: {
+    width: 38, height: 38, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  tplName: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  tplDesc: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  tplBadge: {
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  tplBadgeText: { fontSize: 11, fontWeight: '700' },
 });

@@ -19,7 +19,7 @@ function randomUUID(): string {
 
 type AddHabitDraft = Omit<Habit,
   | 'id' | 'notificationIds' | 'streak' | 'bestStreak' | 'lastCompletedISO'
-  | 'completions' | 'createdAt' | 'sortOrder' | 'pinned'
+  | 'completions' | 'completionTimestamps' | 'createdAt' | 'sortOrder' | 'pinned'
   | 'status' | 'pausedAt' | 'freezesAvailable' | 'freezeUsedDates'
 >;
 
@@ -148,19 +148,20 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   async function addHabit(draft: AddHabitDraft): Promise<Habit> {
     const newHabit: Habit = {
       ...draft,
-      id:               randomUUID(),
-      notificationIds:  [],
-      streak:           0,
-      bestStreak:       0,
-      lastCompletedISO: null,
-      completions:      [],
-      createdAt:        new Date().toISOString(),
-      sortOrder:        habitsRef.current.length,
-      pinned:           false,
-      status:           'active',
-      pausedAt:         null,
-      freezesAvailable: 1,
-      freezeUsedDates:  [],
+      id:                   randomUUID(),
+      notificationIds:      [],
+      streak:               0,
+      bestStreak:           0,
+      lastCompletedISO:     null,
+      completions:          [],
+      completionTimestamps: {},
+      createdAt:            new Date().toISOString(),
+      sortOrder:            habitsRef.current.length,
+      pinned:               false,
+      status:               'active',
+      pausedAt:             null,
+      freezesAvailable:     1,
+      freezeUsedDates:      [],
     };
     const ids = await scheduleHabitReminders(newHabit);
     newHabit.notificationIds = ids;
@@ -191,14 +192,22 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     const habit = habitsRef.current.find(h => h.id === id);
     if (!habit) return { wasAdded: false, newStreak: 0 };
 
-    const key            = toDateKey(new Date());
-    const completions    = habit.completions    ?? [];
-    const freezeUsedDates = habit.freezeUsedDates ?? [];
+    const key                   = toDateKey(new Date());
+    const completions           = habit.completions           ?? [];
+    const freezeUsedDates       = habit.freezeUsedDates       ?? [];
+    const completionTimestamps  = { ...(habit.completionTimestamps ?? {}) };
 
     const wasAdded       = !completions.includes(key);
     const newCompletions = wasAdded
       ? [...completions, key]
       : completions.filter(d => d !== key);
+
+    // Record or remove the precise completion timestamp for smart-reminders
+    if (wasAdded) {
+      completionTimestamps[key] = new Date().toISOString();
+    } else {
+      delete completionTimestamps[key];
+    }
 
     // Include freeze dates when computing streak so freeze-protected days count
     const effective          = [...new Set([...newCompletions, ...freezeUsedDates])];
@@ -218,7 +227,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     commit(
       habitsRef.current.map(h =>
         h.id === id
-          ? { ...h, completions: newCompletions, streak, bestStreak, lastCompletedISO, freezesAvailable: newFreezesAvailable }
+          ? { ...h, completions: newCompletions, completionTimestamps, streak, bestStreak, lastCompletedISO, freezesAvailable: newFreezesAvailable }
           : h,
       ),
     );
