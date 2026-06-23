@@ -4,26 +4,18 @@ import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import { useHabits } from '@/hooks/use-habits';
+import { toDateKey } from '@/lib/habits/streak';
 import type { Habit } from '@/lib/habits/types';
 import type { Colors } from '@/lib/ui/theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 function completedYesterday(habit: Habit): boolean {
-  if (!habit.lastCompletedISO) return false;
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  return sameDay(new Date(habit.lastCompletedISO), yesterday);
+  return (habit.completions ?? []).includes(toDateKey(yesterday));
 }
 
 function yesterdayLabel(): string {
@@ -37,7 +29,7 @@ function yesterdayLabel(): string {
 export default function SummaryScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits } = useHabits();
+  const { habits } = useHabitsStore();
 
   const done = habits.filter(completedYesterday);
   const missed = habits.filter(h => !completedYesterday(h));

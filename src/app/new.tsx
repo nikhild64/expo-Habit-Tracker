@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ClockFace } from '@/components/ClockFace';
 import { useColors } from '@/contexts/ThemeContext';
-import { useHabits } from '@/hooks/use-habits';
+import { useHabitsStore } from '@/contexts/HabitsContext';
 import type { Frequency } from '@/lib/habits/types';
 import { HABIT_COLORS, HABIT_ICONS } from '@/lib/ui/colors';
 import type { Colors } from '@/lib/ui/theme';
@@ -52,7 +52,7 @@ export default function NewHabitScreen() {
   const s = useMemo(() => createStyles(C), [C]);
 
   const { edit } = useLocalSearchParams<{ edit?: string }>();
-  const { habits, addHabit, updateHabit } = useHabits();
+  const { habits, addHabit, updateHabit } = useHabitsStore();
   const existing = edit ? habits.find(h => h.id === edit) : undefined;
 
   const [name, setName]       = useState(existing?.name ?? '');

@@ -1,27 +1,27 @@
-/**
- * seed.ts — Developer dummy data for testing the Progress screen.
- *
- * The heatmap is built by stepping backwards from each habit's
- * `lastCompletedISO` for `streak` days, so setting large streak values fills
- * the calendar naturally without needing a per-day completion log.
- *
- * Designed to produce a realistic gradient across 5 months:
- *
- *   Days 1–23   : 5 habits active → darkest green (100%)
- *   Days 24–47  : 4 habits        → dark green    (~80%)
- *   Days 48–62  : 3 habits        → medium green  (~60%)
- *   Days 63–89  : 2 habits        → light green   (~40%)
- *   Days 90–148 : 1 habit         → faintest green (~20%)
- *   Days 149+   : 0               → empty
- */
-
 import { saveHabits } from './storage';
+import { toDateKey } from './streak';
 import type { Habit } from './types';
 
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString();
+}
+
+/**
+ * Generates `count` consecutive YYYY-MM-DD completion keys ending `endDaysAgo`
+ * days in the past (0 = today).
+ */
+function buildCompletions(count: number, endDaysAgo: number): string[] {
+  const result: string[] = [];
+  const end = new Date();
+  end.setDate(end.getDate() - endDaysAgo);
+  for (let i = 0; i < count; i++) {
+    const d = new Date(end);
+    d.setDate(d.getDate() - i);
+    result.push(toDateKey(d));
+  }
+  return result;
 }
 
 export function buildDummyHabits(): Habit[] {
@@ -39,8 +39,9 @@ export function buildDummyHabits(): Habit[] {
       frequency: { kind: 'daily', hour: 21, minute: 0 },
       notificationIds: [],
       streak:     148,
-      bestStreak: 150,
+      bestStreak: 148,
       lastCompletedISO: TODAY,
+      completions: buildCompletions(148, 0),
       createdAt: FIVE_MONTHS,
     },
     {
@@ -51,8 +52,9 @@ export function buildDummyHabits(): Habit[] {
       frequency: { kind: 'daily', hour: 6, minute: 30 },
       notificationIds: [],
       streak:     89,
-      bestStreak: 92,
+      bestStreak: 89,
       lastCompletedISO: TODAY,
+      completions: buildCompletions(89, 0),
       createdAt: FIVE_MONTHS,
     },
     {
@@ -65,6 +67,11 @@ export function buildDummyHabits(): Habit[] {
       streak:     47,
       bestStreak: 120,
       lastCompletedISO: TODAY,
+      // Current streak of 47 days + an earlier run of 120 days (with a gap between them)
+      completions: [
+        ...buildCompletions(47, 0),    // current streak: today back 46 days
+        ...buildCompletions(120, 48),  // past best: 120-day run ending 48 days ago
+      ],
       createdAt: FIVE_MONTHS,
     },
     {
@@ -75,8 +82,9 @@ export function buildDummyHabits(): Habit[] {
       frequency: { kind: 'weekly', weekdays: [2, 4, 6], hour: 18, minute: 0 },
       notificationIds: [],
       streak:     62,
-      bestStreak: 75,
-      lastCompletedISO: YESTERDAY,   // not done today — shows realistic mix
+      bestStreak: 62,
+      lastCompletedISO: YESTERDAY,
+      completions: buildCompletions(62, 1), // not done today — shows realistic mix
       createdAt: FIVE_MONTHS,
     },
     {
@@ -89,14 +97,15 @@ export function buildDummyHabits(): Habit[] {
       streak:     23,
       bestStreak: 23,
       lastCompletedISO: TODAY,
-      createdAt: ONE_MONTH,          // newer habit — only 1 month of history
+      completions: buildCompletions(23, 0),
+      createdAt: ONE_MONTH,
     },
   ];
 }
 
 /**
  * Replaces all habits in AsyncStorage with the 5 seed habits.
- * Call this from the dev tools panel in Settings and then reload the app.
+ * Call from dev tools in Settings and then reload the app.
  */
 export async function loadDummyData(): Promise<void> {
   await saveHabits(buildDummyHabits());
@@ -104,7 +113,6 @@ export async function loadDummyData(): Promise<void> {
 
 /**
  * Clears all habits from storage.
- * Useful for resetting back to an empty state after testing.
  */
 export async function clearDummyData(): Promise<void> {
   await saveHabits([]);

@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Animated, FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import { isDoneToday, useHabits } from '@/hooks/use-habits';
 import type { Habit } from '@/lib/habits/types';
 import { openSystemSettings } from '@/lib/notifications/setup';
 import type { Colors } from '@/lib/ui/theme';
@@ -179,22 +179,13 @@ function EmptyState({ C }: { C: Colors }) {
 export default function TodayScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits, loading, markDone, deleteHabit, loadFresh } = useHabits();
+  const { habits, loading, markDone, deleteHabit } = useHabitsStore();
   const [permDenied, setPermDenied] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    loadFresh();
-    Notifications.getPermissionsAsync().then(({ status }) => setPermDenied(status === 'denied'));
-  }, []));
-
-  // Re-sync when the app returns to foreground — covers the case where a
-  // notification "Done" action writes to AsyncStorage in the background and
-  // the Today tab is already focused (so useFocusEffect doesn't re-fire).
+  // Check notification permission on mount. No loadFresh needed —
+  // HabitsContext handles AppState-based re-sync automatically.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') loadFresh();
-    });
-    return () => sub.remove();
+    Notifications.getPermissionsAsync().then(({ status }) => setPermDenied(status === 'denied'));
   }, []);
 
   const doneCount = habits.filter(isDoneToday).length;

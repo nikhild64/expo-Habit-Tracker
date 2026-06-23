@@ -1,8 +1,10 @@
 // Importing setup.ts evaluates it at module load time, registering the
 // foreground notification handler before any screen renders.
+import { HabitsProvider } from '@/contexts/HabitsContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useInAppUpdate } from '@/hooks/use-in-app-update';
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
+import { computeStreak, toDateKey } from '@/lib/habits/streak';
 import { snoozeHabitReminder } from '@/lib/notifications/schedule';
 import {
     registerNotificationCategories,
@@ -22,36 +24,23 @@ import { StatusBar } from 'react-native';
  */
 async function markHabitDoneFromNotification(habitId: string): Promise<void> {
   const habits = await loadHabits();
-  const habit = habits.find(h => h.id === habitId);
+  const habit  = habits.find(h => h.id === habitId);
   if (!habit) return;
 
-  const today = new Date();
+  const key         = toDateKey(new Date());
+  const completions = habit.completions ?? [];
+
   // Already done today — nothing to do
-  if (habit.lastCompletedISO) {
-    const last = new Date(habit.lastCompletedISO);
-    if (
-      last.getFullYear() === today.getFullYear() &&
-      last.getMonth() === today.getMonth() &&
-      last.getDate() === today.getDate()
-    ) return;
-  }
+  if (completions.includes(key)) return;
 
-  const last = habit.lastCompletedISO ? new Date(habit.lastCompletedISO) : null;
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const wasYesterday =
-    last &&
-    last.getFullYear() === yesterday.getFullYear() &&
-    last.getMonth() === yesterday.getMonth() &&
-    last.getDate() === yesterday.getDate();
-
-  const newStreak = wasYesterday ? habit.streak + 1 : 1;
-  const newBest = Math.max(newStreak, habit.bestStreak);
+  const newCompletions             = [...completions, key];
+  const { streak, bestStreak }     = computeStreak(newCompletions);
+  const lastCompletedISO           = new Date().toISOString();
 
   await saveHabits(
     habits.map(h =>
       h.id === habitId
-        ? { ...h, streak: newStreak, bestStreak: newBest, lastCompletedISO: today.toISOString() }
+        ? { ...h, completions: newCompletions, streak, bestStreak, lastCompletedISO }
         : h,
     ),
   );
@@ -65,11 +54,10 @@ async function markHabitDoneFromNotification(habitId: string): Promise<void> {
 async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
 ): Promise<void> {
-  const data = response.notification.request.content.data as Record<string, unknown>;
+  const data    = response.notification.request.content.data as Record<string, unknown>;
   const habitId = typeof data?.habitId === 'string' ? data.habitId : null;
   const actionId = response.actionIdentifier;
-
-  const notifId = response.notification.request.identifier;
+  const notifId  = response.notification.request.identifier;
 
   if (actionId === 'HABIT_DONE' && habitId) {
     await markHabitDoneFromNotification(habitId);
@@ -123,17 +111,17 @@ function AppNavigator() {
     <>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="new"
-        options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-      />
-      <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
-      <Stack.Screen name="summary" options={{ animation: 'slide_from_bottom' }} />
-      <Stack.Screen name="habit/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="about"      options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="privacy"    options={{ animation: 'slide_from_right' }} />
-    </Stack>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="new"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
+        <Stack.Screen name="summary" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="habit/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="about"      options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="privacy"    options={{ animation: 'slide_from_right' }} />
+      </Stack>
     </>
   );
 }
@@ -142,7 +130,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <AppNavigator />
+        <HabitsProvider>
+          <AppNavigator />
+        </HabitsProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

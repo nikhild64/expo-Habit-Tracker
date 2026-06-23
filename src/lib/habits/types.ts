@@ -14,7 +14,12 @@ export type Habit = {
   notificationIds: string[];
   streak: number;
   bestStreak: number;
-  /** ISO string of last completion, or null if never completed */
+  /** ISO date strings (YYYY-MM-DD) for every day this habit was completed. */
+  completions: string[];
+  /**
+   * @deprecated Kept only for v1→v2 storage migration and the notification
+   * background handler. All new code should use `completions` instead.
+   */
   lastCompletedISO: string | null;
   createdAt: string;
 };

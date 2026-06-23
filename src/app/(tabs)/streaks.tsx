@@ -4,9 +4,10 @@ import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import { isDoneToday, useHabits } from '@/hooks/use-habits';
 import type { Habit } from '@/lib/habits/types';
+import { toDateKey } from '@/lib/habits/streak';
 import type { Colors } from '@/lib/ui/theme';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -17,17 +18,13 @@ const MONTH_NAMES = [
 ];
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-function toDateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 /**
  * Single-pass builder that returns both maps at once.
  *   countMap : dateKey → number of habits completed that day (for heat colour)
  *   habitMap : dateKey → Habit[]  (for the day-detail sheet)
+ *
+ * Uses the real completions[] array from each habit — no more inference from
+ * streak + lastCompletedISO.
  */
 function buildCompletionData(habits: Habit[]): {
   countMap: Map<string, number>;
@@ -37,16 +34,11 @@ function buildCompletionData(habits: Habit[]): {
   const habitMap = new Map<string, Habit[]>();
 
   for (const habit of habits) {
-    if (!habit.lastCompletedISO || habit.streak <= 0) continue;
-    const end = new Date(habit.lastCompletedISO);
-    for (let i = 0; i < habit.streak; i++) {
-      const d = new Date(end);
-      d.setDate(d.getDate() - i);
-      const key = toDateKey(d);
-      countMap.set(key, (countMap.get(key) ?? 0) + 1);
-      const bucket = habitMap.get(key);
+    for (const dateKey of (habit.completions ?? [])) {
+      countMap.set(dateKey, (countMap.get(dateKey) ?? 0) + 1);
+      const bucket = habitMap.get(dateKey);
       if (bucket) bucket.push(habit);
-      else habitMap.set(key, [habit]);
+      else habitMap.set(dateKey, [habit]);
     }
   }
   return { countMap, habitMap };
@@ -388,7 +380,7 @@ function HabitStreakRow({ habit }: { habit: Habit }) {
 export default function StreaksScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits, loading } = useHabits();
+  const { habits, loading } = useHabitsStore();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const totalHabits = habits.length;

@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors } from '@/contexts/ThemeContext';
-import { isDoneToday, useHabits } from '@/hooks/use-habits';
+import { toDateKey } from '@/lib/habits/streak';
 import type { Habit } from '@/lib/habits/types';
 import type { Colors } from '@/lib/ui/theme';
 
@@ -17,29 +18,9 @@ const MONTH_NAMES = [
 ];
 const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-function toDateKey(d: Date): string {
-  // Use local date parts to avoid UTC-shift on ISO string
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-/**
- * Infers which calendar days are part of the current streak by stepping
- * backwards from `lastCompletedISO` for `streak` consecutive days.
- * This is an estimate — the app does not store a full completion history.
- */
-function getStreakDateKeys(habit: Habit): Set<string> {
-  if (!habit.lastCompletedISO || habit.streak <= 0) return new Set();
-  const end = new Date(habit.lastCompletedISO);
-  const keys = new Set<string>();
-  for (let i = 0; i < habit.streak; i++) {
-    const d = new Date(end);
-    d.setDate(d.getDate() - i);
-    keys.add(toDateKey(d));
-  }
-  return keys;
+/** Returns all completion dates as a Set for O(1) calendar lookups. */
+function getCompletionDateKeys(habit: Habit): Set<string> {
+  return new Set(habit.completions ?? []);
 }
 
 function formatFrequencyFull(habit: Habit): string {
@@ -63,9 +44,9 @@ function StreakCalendar({ habit }: { habit: Habit }) {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
 
-  const todayKey = toDateKey(now);
-  const streakKeys = getStreakDateKeys(habit);
-  const createdAt = new Date(habit.createdAt);
+  const todayKey      = toDateKey(now);
+  const completedKeys = getCompletionDateKeys(habit);
+  const createdAt     = new Date(habit.createdAt);
 
   const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
   const isCreatedMonth =
@@ -122,21 +103,21 @@ function StreakCalendar({ habit }: { habit: Habit }) {
             const mm = String(viewMonth + 1).padStart(2, '0');
             const dd = String(day).padStart(2, '0');
             const key = `${viewYear}-${mm}-${dd}`;
-            const isToday = key === todayKey;
-            const isStreak = streakKeys.has(key);
+            const isToday     = key === todayKey;
+            const isCompleted = completedKeys.has(key);
 
             return (
               <View key={di} style={cal.cell}>
                 <View style={[
                   cal.dayCircle,
-                  isStreak && { backgroundColor: habit.color },
-                  isToday && !isStreak && cal.dayCircleToday,
-                  isToday && isStreak && { borderWidth: 2.5, borderColor: '#fff' },
+                  isCompleted && { backgroundColor: habit.color },
+                  isToday && !isCompleted && cal.dayCircleToday,
+                  isToday && isCompleted && { borderWidth: 2.5, borderColor: '#fff' },
                 ]}>
                   <Text style={[
                     cal.dayText,
-                    isStreak && cal.dayTextStreak,
-                    isToday && !isStreak && cal.dayTextToday,
+                    isCompleted && cal.dayTextStreak,
+                    isToday && !isCompleted && cal.dayTextToday,
                   ]}>
                     {day}
                   </Text>
@@ -151,7 +132,7 @@ function StreakCalendar({ habit }: { habit: Habit }) {
       <View style={cal.legend}>
         <View style={cal.legendItem}>
           <View style={[cal.legendDot, { backgroundColor: habit.color }]} />
-          <Text style={cal.legendText}>Streak</Text>
+          <Text style={cal.legendText}>Completed</Text>
         </View>
         <View style={cal.legendItem}>
           <View style={[cal.legendDot, cal.legendDotToday]} />
@@ -183,11 +164,9 @@ export default function HabitDetailScreen() {
   const styles = useMemo(() => createStyles(C), [C]);
   const cal = useMemo(() => createCalStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { habits, markDone, deleteHabit, loadFresh } = useHabits();
-
-  // Reload habits when this screen regains focus (e.g. returning from the edit screen).
-  // Without this, the detail view shows stale data after saving changes in new.tsx.
-  useFocusEffect(useCallback(() => { loadFresh(); }, []));
+  const { habits, markDone, deleteHabit } = useHabitsStore();
+  // Global HabitsContext keeps state in sync across all screens automatically —
+  // no useFocusEffect / loadFresh needed.
 
   const habit = habits.find(h => h.id === id);
 
