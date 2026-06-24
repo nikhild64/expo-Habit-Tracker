@@ -11,10 +11,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useGamification } from '@/contexts/GamificationContext';
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
+import { useRoutinesStore } from '@/contexts/RoutinesContext';
 import { useColors } from '@/contexts/ThemeContext';
 import { XP_ALL_DONE_BONUS, XP_COMPLETE_HABIT, XP_STREAK_7 } from '@/lib/gamification/rules';
 import { toDateKey } from '@/lib/habits/streak';
 import type { Habit, HabitCategory } from '@/lib/habits/types';
+import type { Routine } from '@/lib/routines/types';
 import { CATEGORY_META } from '@/lib/ui/colors';
 import { openSystemSettings } from '@/lib/notifications/setup';
 import type { Colors } from '@/lib/ui/theme';
@@ -248,12 +250,55 @@ function EmptyState({ C }: { C: Colors }) {
   );
 }
 
+function RoutineCard({ routine, habits, C }: { routine: Routine; habits: Habit[]; C: Colors }) {
+  const routineHabits = useMemo(
+    () =>
+      routine.habitIds
+        .map(id => habits.find(h => h.id === id))
+        .filter((h): h is Habit => h != null && (h.status ?? 'active') === 'active'),
+    [routine.habitIds, habits],
+  );
+  const doneCount = routineHabits.filter(isDoneToday).length;
+  const total     = routineHabits.length;
+  const allDone   = total > 0 && doneCount === total;
+  const pct       = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  return (
+    <TouchableOpacity
+      style={[rcard.card, { backgroundColor: C.surface, borderColor: allDone ? C.done : C.border }]}
+      onPress={() => router.push({ pathname: '/routine/[id]', params: { id: routine.id } } as never)}
+      activeOpacity={0.8}
+    >
+      <View style={[rcard.accent, { backgroundColor: routine.color }]} />
+      <View style={[rcard.icon, { backgroundColor: allDone ? C.doneLight : routine.color }]}>
+        {allDone
+          ? <Ionicons name="checkmark" size={20} color={C.done} />
+          : <Ionicons name={routine.icon as never} size={20} color="#fff" />
+        }
+      </View>
+      <View style={rcard.body}>
+        <Text style={[rcard.name, { color: C.text }]} numberOfLines={1}>{routine.name}</Text>
+        <Text style={[rcard.sub, { color: C.textMuted }]}>
+          {total === 0 ? 'No active habits' : allDone ? 'All done!' : `${doneCount}/${total} done`}
+        </Text>
+      </View>
+      <View style={[rcard.ring, { borderColor: allDone ? C.done : routine.color }]}>
+        <Text style={[rcard.ringText, { color: allDone ? C.done : routine.color }]}>
+          {total > 0 ? `${pct}%` : '—'}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+    </TouchableOpacity>
+  );
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function TodayScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
   const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin } = useHabitsStore();
+  const { routines, markRoutineCompleteForToday } = useRoutinesStore();
   const { awardXP } = useGamification();
   const [permDenied, setPermDenied] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | 'All'>('All');
@@ -290,7 +335,7 @@ export default function TodayScreen() {
     [habits],
   );
 
-  // ── Completion handler — awards XP then shows toast ────────────────────────
+  // ── Completion handler — awards XP, auto-completes routines, shows toast ───
   const handleDone = useCallback(async (habitId: string) => {
     const result = await markDone(habitId);
     if (!result.wasAdded) return;
@@ -300,6 +345,21 @@ export default function TodayScreen() {
       h.id === habitId ? true : isDoneToday(h),
     );
 
+    // Auto-complete any routines whose habits are now all done
+    for (const routine of routines) {
+      const rHabits = routine.habitIds
+        .map(rid => activeHabits.find(h => h.id === rid))
+        .filter((h): h is Habit => h != null);
+      if (rHabits.length > 0) {
+        const allRoutineDone = rHabits.every(h =>
+          h.id === habitId ? true : isDoneToday(h),
+        );
+        if (allRoutineDone) {
+          markRoutineCompleteForToday(routine.id).catch(console.error);
+        }
+      }
+    }
+
     let xpAmount = XP_COMPLETE_HABIT;
     if (allDoneNow)                                            xpAmount += XP_ALL_DONE_BONUS;
     if (result.newStreak > 0 && result.newStreak % 7 === 0)   xpAmount += XP_STREAK_7;
@@ -307,7 +367,7 @@ export default function TodayScreen() {
     await awardXP(xpAmount, { allHabitsDone: allDoneNow }, activeHabits);
     showXpToast(xpAmount);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markDone, awardXP, activeHabits]);
+  }, [markDone, awardXP, activeHabits, routines, markRoutineCompleteForToday]);
 
   // Categories that actually have active habits (to avoid showing empty chips)
   const presentCategories = useMemo(() => {
@@ -381,6 +441,38 @@ export default function TodayScreen() {
           )}
         </View>
       )}
+
+      {/* ── Routines section ─────────────────────────────────────────────── */}
+      <View style={s.routinesSection}>
+        <View style={s.routinesSectionHeader}>
+          <Text style={s.sectionHeaderLabel}>Routines</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/new-routine' as never)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="add-circle-outline" size={20} color={C.tint} />
+          </TouchableOpacity>
+        </View>
+        {routines.length === 0 ? (
+          <TouchableOpacity
+            style={[s.routinesEmpty, { backgroundColor: C.surface, borderColor: C.border }]}
+            onPress={() => router.push('/new-routine' as never)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="list-outline" size={18} color={C.textMuted} />
+            <Text style={[s.routinesEmptyText, { color: C.textMuted }]}>
+              Stack habits into a daily routine
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {routines.map(r => (
+              <RoutineCard key={r.id} routine={r} habits={habits} C={C} />
+            ))}
+          </View>
+        )}
+      </View>
 
       {/* Category filter chips — only render when 2+ categories are in use */}
       {presentCategories.length > 1 && (
@@ -516,6 +608,22 @@ function createStyles(C: Colors) {
       paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.surface,
     },
     catChipText: { fontSize: 12, fontWeight: '600' },
+
+    routinesSection: { paddingHorizontal: 16, paddingBottom: 4, gap: 8 },
+    routinesSectionHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingTop: 8, paddingBottom: 4,
+    },
+    sectionHeaderLabel: {
+      fontSize: 13, fontWeight: '600', color: C.textMuted,
+      textTransform: 'uppercase', letterSpacing: 0.7,
+    },
+    routinesEmpty: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
+      paddingHorizontal: 14, paddingVertical: 12,
+    },
+    routinesEmptyText: { flex: 1, fontSize: 13, fontWeight: '500' },
   });
 }
 
@@ -560,4 +668,21 @@ const empty = StyleSheet.create({
   btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 4 },
   btnSecondary: { borderWidth: 1 },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+});
+
+const rcard = StyleSheet.create({
+  card: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 16, borderWidth: 1, padding: 14, gap: 10, overflow: 'hidden',
+  },
+  accent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
+  icon:   { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  body:   { flex: 1, gap: 3 },
+  name:   { fontSize: 15, fontWeight: '600' },
+  sub:    { fontSize: 12 },
+  ring:   {
+    width: 44, height: 44, borderRadius: 22, borderWidth: 2.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ringText: { fontSize: 11, fontWeight: '800' },
 });

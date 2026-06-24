@@ -2,6 +2,7 @@
 // foreground notification handler before any screen renders.
 import { GamificationProvider } from '@/contexts/GamificationContext';
 import { HabitsProvider } from '@/contexts/HabitsContext';
+import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useInAppUpdate } from '@/hooks/use-in-app-update';
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
@@ -126,7 +127,12 @@ function AppNavigator() {
         <Stack.Screen name="habit/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="about"      options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy"    options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="templates"  options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="templates"   options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen
+          name="new-routine"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen name="routine/[id]" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );
@@ -137,9 +143,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <HabitsProvider>
-          <GamificationProvider>
-            <AppNavigator />
-          </GamificationProvider>
+          <RoutinesProvider>
+            <GamificationProvider>
+              <AppNavigator />
+            </GamificationProvider>
+          </RoutinesProvider>
         </HabitsProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
