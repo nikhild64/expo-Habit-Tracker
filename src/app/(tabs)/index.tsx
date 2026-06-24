@@ -585,58 +585,55 @@ export default function TodayScreen() {
         animationType="slide"
         onRequestClose={() => setNoteSheet(null)}
       >
-        <TouchableOpacity
-          style={s.noteOverlay}
-          activeOpacity={1}
-          onPress={() => setNoteSheet(null)}
-        >
+        <View style={s.noteOverlay}>
+          {/* Backdrop — tap to dismiss */}
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setNoteSheet(null)} />
+          {/* Sheet sits below the backdrop; KAV pushes it above the keyboard */}
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-              <View style={[s.noteSheet, { backgroundColor: C.surface }]}>
-                <View style={[s.noteDragHandle, { backgroundColor: C.border }]} />
-                <View style={s.noteSheetHeader}>
-                  <Ionicons name="journal-outline" size={20} color={C.tint} />
-                  <Text style={[s.noteSheetTitle, { color: C.text }]}>Add a note (optional)</Text>
-                </View>
-                {noteSheet && (
-                  <Text style={[s.noteSheetSub, { color: C.textMuted }]}>
-                    {habits.find(h => h.id === noteSheet.habitId)?.name ?? ''} · {noteSheet.date}
-                  </Text>
-                )}
-                <TextInput
-                  style={[s.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
-                  placeholder="How did it go? Any thoughts…"
-                  placeholderTextColor={C.textMuted}
-                  multiline
-                  value={noteInputText}
-                  onChangeText={setNoteInputText}
-                  autoFocus
-                  returnKeyType="default"
-                />
-                <View style={s.noteActions}>
-                  <TouchableOpacity
-                    style={[s.noteSaveBtn, { backgroundColor: C.tint }]}
-                    onPress={async () => {
-                      if (noteSheet && noteInputText.trim()) {
-                        await addNote(noteSheet.habitId, noteSheet.date, noteInputText.trim());
-                      }
-                      setNoteSheet(null);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={s.noteSaveBtnText}>Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.noteSkipBtn}
-                    onPress={() => setNoteSheet(null)}
-                  >
-                    <Text style={[s.noteSkipBtnText, { color: C.textMuted }]}>Skip</Text>
-                  </TouchableOpacity>
-                </View>
+            <View style={[s.noteSheet, { backgroundColor: C.surface }]}>
+              <View style={[s.noteDragHandle, { backgroundColor: C.border }]} />
+              <View style={s.noteSheetHeader}>
+                <Ionicons name="journal-outline" size={20} color={C.tint} />
+                <Text style={[s.noteSheetTitle, { color: C.text }]}>Add a note (optional)</Text>
               </View>
-            </TouchableOpacity>
+              {noteSheet && (
+                <Text style={[s.noteSheetSub, { color: C.textMuted }]}>
+                  {habits.find(h => h.id === noteSheet.habitId)?.name ?? ''} · {noteSheet.date}
+                </Text>
+              )}
+              <TextInput
+                style={[s.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
+                placeholder="How did it go? Any thoughts…"
+                placeholderTextColor={C.textMuted}
+                multiline
+                value={noteInputText}
+                onChangeText={setNoteInputText}
+                autoFocus
+                returnKeyType="default"
+              />
+              <View style={s.noteActions}>
+                <TouchableOpacity
+                  style={[s.noteSaveBtn, { backgroundColor: C.tint }]}
+                  onPress={async () => {
+                    if (noteSheet && noteInputText.trim()) {
+                      await addNote(noteSheet.habitId, noteSheet.date, noteInputText.trim());
+                    }
+                    setNoteSheet(null);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.noteSaveBtnText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.noteSkipBtn}
+                  onPress={() => setNoteSheet(null)}
+                >
+                  <Text style={[s.noteSkipBtnText, { color: C.textMuted }]}>Skip</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </KeyboardAvoidingView>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -704,7 +701,7 @@ function createStyles(C: Colors) {
     routinesEmptyText: { flex: 1, fontSize: 13, fontWeight: '500' },
 
     // Note sheet
-    noteOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'flex-end' },
+    noteOverlay: { flex: 1, backgroundColor: '#00000060' },
     noteSheet: {
       borderTopLeftRadius: 24, borderTopRightRadius: 24,
       paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40,

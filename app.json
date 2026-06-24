@@ -47,7 +47,8 @@
         {
           "defaultChannel": "habit-reminders"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

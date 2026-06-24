@@ -578,55 +578,52 @@ export default function HabitDetailScreen() {
         animationType="slide"
         onRequestClose={() => setNoteEdit(null)}
       >
-        <TouchableOpacity
-          style={styles.noteOverlay}
-          activeOpacity={1}
-          onPress={() => setNoteEdit(null)}
-        >
+        <View style={styles.noteOverlay}>
+          {/* Backdrop — tap to dismiss */}
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setNoteEdit(null)} />
+          {/* Sheet sits below the backdrop; KAV pushes it above the keyboard */}
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-              <View style={[styles.noteSheet, { backgroundColor: C.surface }]}>
-                <View style={[styles.noteDragHandle, { backgroundColor: C.border }]} />
-                <View style={styles.noteSheetHeader}>
-                  <Ionicons name="journal-outline" size={20} color={C.tint} />
-                  <Text style={[styles.noteSheetTitle, { color: C.text }]}>
-                    {noteEdit ? formatJournalDate(noteEdit.date) : ''}
-                  </Text>
-                </View>
-                <TextInput
-                  style={[styles.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
-                  placeholder="How did it go? Any thoughts…"
-                  placeholderTextColor={C.textMuted}
-                  multiline
-                  value={noteEdit?.text ?? ''}
-                  onChangeText={t => setNoteEdit(prev => prev ? { ...prev, text: t } : null)}
-                  autoFocus
-                  returnKeyType="default"
-                />
-                <View style={styles.noteActions}>
-                  <TouchableOpacity
-                    style={[styles.noteSaveBtn, { backgroundColor: C.tint }]}
-                    onPress={() => {
-                      if (noteEdit) {
-                        addNote(habit.id, noteEdit.date, noteEdit.text.trim());
-                      }
-                      setNoteEdit(null);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.noteSaveBtnText}>Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.noteSkipBtn}
-                    onPress={() => setNoteEdit(null)}
-                  >
-                    <Text style={[styles.noteSkipBtnText, { color: C.textMuted }]}>Discard</Text>
-                  </TouchableOpacity>
-                </View>
+            <View style={[styles.noteSheet, { backgroundColor: C.surface }]}>
+              <View style={[styles.noteDragHandle, { backgroundColor: C.border }]} />
+              <View style={styles.noteSheetHeader}>
+                <Ionicons name="journal-outline" size={20} color={C.tint} />
+                <Text style={[styles.noteSheetTitle, { color: C.text }]}>
+                  {noteEdit ? formatJournalDate(noteEdit.date) : ''}
+                </Text>
               </View>
-            </TouchableOpacity>
+              <TextInput
+                style={[styles.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
+                placeholder="How did it go? Any thoughts…"
+                placeholderTextColor={C.textMuted}
+                multiline
+                value={noteEdit?.text ?? ''}
+                onChangeText={t => setNoteEdit(prev => prev ? { ...prev, text: t } : null)}
+                autoFocus
+                returnKeyType="default"
+              />
+              <View style={styles.noteActions}>
+                <TouchableOpacity
+                  style={[styles.noteSaveBtn, { backgroundColor: C.tint }]}
+                  onPress={() => {
+                    if (noteEdit) {
+                      addNote(habit.id, noteEdit.date, noteEdit.text.trim());
+                    }
+                    setNoteEdit(null);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.noteSaveBtnText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.noteSkipBtn}
+                  onPress={() => setNoteEdit(null)}
+                >
+                  <Text style={[styles.noteSkipBtnText, { color: C.textMuted }]}>Discard</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </KeyboardAvoidingView>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -775,7 +772,7 @@ function createStyles(C: Colors) { return StyleSheet.create({
   journalNote: { fontSize: 13, lineHeight: 18 },
 
   // Note edit modal
-  noteOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'flex-end' },
+  noteOverlay: { flex: 1, backgroundColor: '#00000060' },
   noteSheet: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40,

@@ -44,6 +44,8 @@ type HabitsContextValue = {
   restoreHabit:   (id: string) => Promise<void>;
   addNote:        (habitId: string, date: string, note: string) => Promise<void>;
   loadFresh:      () => Promise<void>;
+  /** Merges incoming habits into the store, skipping any whose ID already exists. */
+  importHabits:   (incoming: Habit[]) => Promise<{ added: number; skipped: number }>;
 };
 
 const HabitsContext = createContext<HabitsContextValue>({
@@ -60,6 +62,7 @@ const HabitsContext = createContext<HabitsContextValue>({
   restoreHabit:  async () => {},
   addNote:       async () => {},
   loadFresh:     async () => {},
+  importHabits:  async () => ({ added: 0, skipped: 0 }),
 });
 
 // ── Provider ─────────────────────────────────────────────────────────────────
@@ -333,12 +336,47 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     }));
   }
 
+  async function importHabits(incoming: Habit[]): Promise<{ added: number; skipped: number }> {
+    const existing    = habitsRef.current;
+    const existingIds = new Set(existing.map(h => h.id));
+    const maxOrder    = existing.reduce((m, h) => Math.max(m, h.sortOrder ?? 0), existing.length - 1);
+
+    const toAdd: Habit[] = incoming
+      .filter(h => !existingIds.has(h.id))
+      .map((h, i) => ({
+        ...h,
+        // Apply safe defaults for fields that may be absent in old exports
+        completions:          Array.isArray(h.completions)     ? h.completions     : [],
+        completionTimestamps: h.completionTimestamps           ?? {},
+        notes:                h.notes                         ?? {},
+        freezesAvailable:     h.freezesAvailable               ?? 1,
+        freezeUsedDates:      Array.isArray(h.freezeUsedDates) ? h.freezeUsedDates : [],
+        pinned:               h.pinned                        ?? false,
+        category:             h.category                      ?? 'Other',
+        // Always reset these on the new device
+        notificationIds:      [],
+        status:               'active' as const,
+        pausedAt:             null,
+        sortOrder:            maxOrder + i + 1,
+      }));
+
+    const withNotifications = await Promise.all(
+      toAdd.map(async h => {
+        const ids = await scheduleHabitReminders(h);
+        return { ...h, notificationIds: ids };
+      }),
+    );
+
+    commit([...existing, ...withNotifications]);
+    return { added: withNotifications.length, skipped: incoming.length - withNotifications.length };
+  }
+
   return (
     <HabitsContext.Provider
       value={{
         habits, loading, addHabit, updateHabit, deleteHabit, markDone,
         reorderHabits, togglePin, pauseHabit, archiveHabit, restoreHabit,
-        addNote, loadFresh,
+        addNote, importHabits, loadFresh,
       }}
     >
       {children}

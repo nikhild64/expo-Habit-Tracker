@@ -4,13 +4,14 @@ import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, DevSettings, Modal, Platform, ScrollView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ActivityIndicator, DevSettings, Modal, Platform, ScrollView, StatusBar, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ClockFace } from '@/components/ClockFace';
 import { useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors, useTheme } from '@/contexts/ThemeContext';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { exportToCSV, exportToJSON, pickHabitsJSON } from '@/lib/habits/export';
 import {
   DEFAULT_QUIET_HOURS,
   loadQuietHours,
@@ -48,13 +49,14 @@ export default function SettingsScreen() {
   const C = useColors();
   const { isDark, toggleTheme } = useTheme();
   const { token, permissionStatus, refresh } = usePushNotifications();
-  const { habits, restoreHabit, deleteHabit } = useHabitsStore();
+  const { habits, restoreHabit, deleteHabit, importHabits } = useHabitsStore();
   const archivedHabits = habits.filter(h => h.status === 'archived');
   const [quietHours, setQuietHoursState] = useState<QuietHours>(DEFAULT_QUIET_HOURS);
   const [exactAlarmStatus, setExactAlarmStatus] = useState<'not-applicable' | 'granted' | 'revoked'>('not-applicable');
   const [activePicker, setActivePicker] = useState<'start' | 'end' | null>(null);
   const [pickerHour, setPickerHour] = useState(0);
   const [pickerMinute, setPickerMinute] = useState(0);
+  const [dataLoading, setDataLoading] = useState<'csv' | 'json' | 'import' | null>(null);
 
   // Easter egg: tap Version 5× in 10 s to reveal push token
   const [showPushToken, setShowPushToken] = useState(false);
@@ -124,6 +126,75 @@ export default function SettingsScreen() {
           onPress: async () => {
             await AsyncStorage.clear();
             router.replace('/onboarding' as never);
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleExportCSV() {
+    setDataLoading('csv');
+    try {
+      await exportToCSV(habits);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Export failed. Please try again.';
+      Alert.alert('Export Failed', msg);
+    } finally {
+      setDataLoading(null);
+    }
+  }
+
+  async function handleExportJSON() {
+    setDataLoading('json');
+    try {
+      await exportToJSON(habits);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Export failed. Please try again.';
+      Alert.alert('Export Failed', msg);
+    } finally {
+      setDataLoading(null);
+    }
+  }
+
+  async function handleImportJSON() {
+    setDataLoading('import');
+    let picked;
+    try {
+      picked = await pickHabitsJSON();
+    } catch (e: unknown) {
+      setDataLoading(null);
+      const msg = e instanceof Error ? e.message : 'Could not read the file.';
+      Alert.alert('Import Failed', msg);
+      return;
+    }
+    setDataLoading(null);
+
+    if (!picked) return; // user cancelled
+
+    const total = picked.length;
+    const existingIds = new Set(habits.map(h => h.id));
+    const newCount = picked.filter(h => !existingIds.has(h.id)).length;
+    const skipCount = total - newCount;
+
+    const skipNote = skipCount > 0 ? ` (${skipCount} already exist and will be skipped)` : '';
+    Alert.alert(
+      'Import Habits',
+      `Found ${total} habit${total !== 1 ? 's' : ''} in the file${skipNote}. Import ${newCount} new habit${newCount !== 1 ? 's' : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Import',
+          onPress: async () => {
+            try {
+              const result = await importHabits(picked);
+              Alert.alert(
+                'Import Complete',
+                `Added ${result.added} habit${result.added !== 1 ? 's' : ''}${result.skipped > 0 ? `, skipped ${result.skipped} duplicate${result.skipped !== 1 ? 's' : ''}` : ''}.`,
+              );
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : 'Import failed. Please try again.';
+              Alert.alert('Import Failed', msg);
+            }
           },
         },
       ],
@@ -427,6 +498,76 @@ export default function SettingsScreen() {
             </View>
           </>
         )}
+
+        {/* ── Data ── */}
+        <SectionLabel label="Data" C={C} />
+        <View style={s.card}>
+          {/* Export as CSV */}
+          <TouchableOpacity
+            style={[s.row, s.rowBorder]}
+            onPress={handleExportCSV}
+            activeOpacity={0.7}
+            disabled={dataLoading !== null}
+          >
+            <View style={[s.rowIcon, { backgroundColor: '#22C55E22' }]}>
+              {dataLoading === 'csv'
+                ? <ActivityIndicator size={16} color="#22C55E" />
+                : <Ionicons name="document-text-outline" size={16} color="#22C55E" />
+              }
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Export as CSV</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Habit history — name, date, completion, notes
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+
+          {/* Export as JSON */}
+          <TouchableOpacity
+            style={[s.row, s.rowBorder]}
+            onPress={handleExportJSON}
+            activeOpacity={0.7}
+            disabled={dataLoading !== null}
+          >
+            <View style={[s.rowIcon, { backgroundColor: '#6366F122' }]}>
+              {dataLoading === 'json'
+                ? <ActivityIndicator size={16} color={C.tint} />
+                : <Ionicons name="code-slash-outline" size={16} color={C.tint} />
+              }
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Export as JSON</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Full backup — can be imported later
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+
+          {/* Import from JSON */}
+          <TouchableOpacity
+            style={s.row}
+            onPress={handleImportJSON}
+            activeOpacity={0.7}
+            disabled={dataLoading !== null}
+          >
+            <View style={[s.rowIcon, { backgroundColor: '#F9731622' }]}>
+              {dataLoading === 'import'
+                ? <ActivityIndicator size={16} color="#F97316" />
+                : <Ionicons name="cloud-upload-outline" size={16} color="#F97316" />
+              }
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Import from JSON</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Restore habits from a previous backup
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         {/* ── Danger zone ── */}
         <SectionLabel label="Danger Zone" C={C} />
