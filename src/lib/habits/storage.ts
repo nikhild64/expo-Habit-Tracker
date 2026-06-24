@@ -62,6 +62,11 @@ function migrateHabit(h: Habit, index: number): Habit {
     out = { ...out, completionTimestamps: {} };
   }
 
+  // v5 → v6: notes
+  if (!out.notes || typeof out.notes !== 'object' || Array.isArray(out.notes)) {
+    out = { ...out, notes: {} };
+  }
+
   return out;
 }
 

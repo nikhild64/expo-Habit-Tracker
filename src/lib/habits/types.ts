@@ -51,6 +51,8 @@ export type Habit = {
   freezesAvailable: number;
   /** ISO date strings (YYYY-MM-DD) for days when a freeze was consumed. */
   freezeUsedDates: string[];
+  /** Journal notes attached to specific completion dates: YYYY-MM-DD → note text. */
+  notes: Record<string, string>;
   /**
    * Full ISO timestamps for each completion: YYYY-MM-DD → ISO string.
    * Used by smart-reminders to find the optimal reminder hour.

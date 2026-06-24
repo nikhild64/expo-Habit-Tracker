@@ -20,7 +20,7 @@ function randomUUID(): string {
 type AddHabitDraft = Omit<Habit,
   | 'id' | 'notificationIds' | 'streak' | 'bestStreak' | 'lastCompletedISO'
   | 'completions' | 'completionTimestamps' | 'createdAt' | 'sortOrder' | 'pinned'
-  | 'status' | 'pausedAt' | 'freezesAvailable' | 'freezeUsedDates'
+  | 'status' | 'pausedAt' | 'freezesAvailable' | 'freezeUsedDates' | 'notes'
 >;
 
 export type MarkDoneResult = {
@@ -42,6 +42,7 @@ type HabitsContextValue = {
   pauseHabit:     (id: string) => Promise<void>;
   archiveHabit:   (id: string) => Promise<void>;
   restoreHabit:   (id: string) => Promise<void>;
+  addNote:        (habitId: string, date: string, note: string) => Promise<void>;
   loadFresh:      () => Promise<void>;
 };
 
@@ -57,6 +58,7 @@ const HabitsContext = createContext<HabitsContextValue>({
   pauseHabit:    async () => {},
   archiveHabit:  async () => {},
   restoreHabit:  async () => {},
+  addNote:       async () => {},
   loadFresh:     async () => {},
 });
 
@@ -174,6 +176,7 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       lastCompletedISO:     null,
       completions:          [],
       completionTimestamps: {},
+      notes:                {},
       createdAt:            new Date().toISOString(),
       sortOrder:            habitsRef.current.length,
       pinned:               false,
@@ -317,11 +320,25 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     commit(habitsRef.current.map(h => (h.id === id ? restored : h)));
   }
 
+  async function addNote(habitId: string, date: string, note: string): Promise<void> {
+    commit(habitsRef.current.map(h => {
+      if (h.id !== habitId) return h;
+      const notes = { ...(h.notes ?? {}) };
+      if (note.trim()) {
+        notes[date] = note.trim();
+      } else {
+        delete notes[date];
+      }
+      return { ...h, notes };
+    }));
+  }
+
   return (
     <HabitsContext.Provider
       value={{
         habits, loading, addHabit, updateHabit, deleteHabit, markDone,
-        reorderHabits, togglePin, pauseHabit, archiveHabit, restoreHabit, loadFresh,
+        reorderHabits, togglePin, pauseHabit, archiveHabit, restoreHabit,
+        addNote, loadFresh,
       }}
     >
       {children}

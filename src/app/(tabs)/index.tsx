@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, LayoutChangeEvent, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import type { RenderItemParams } from 'react-native-draggable-flatlist';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -304,7 +304,7 @@ function RoutineCard({ routine, habits, C }: { routine: Routine; habits: Habit[]
 export default function TodayScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin } = useHabitsStore();
+  const { habits, loading, markDone, deleteHabit, reorderHabits, togglePin, addNote } = useHabitsStore();
   const { routines, markRoutineCompleteForToday } = useRoutinesStore();
   const { awardXP } = useGamification();
   const [permDenied, setPermDenied] = useState(false);
@@ -314,6 +314,10 @@ export default function TodayScreen() {
   const [xpToastAmount, setXpToastAmount] = useState(0);
   const xpOpacity = useRef(new Animated.Value(0)).current;
   const xpTransY  = useRef(new Animated.Value(0)).current;
+
+  // ── Note sheet ───────────────────────────────────────────────────────────────
+  const [noteSheet, setNoteSheet] = useState<{ habitId: string; date: string } | null>(null);
+  const [noteInputText, setNoteInputText] = useState('');
 
   function showXpToast(amount: number) {
     setXpToastAmount(amount);
@@ -373,6 +377,12 @@ export default function TodayScreen() {
 
     await awardXP(xpAmount, { allHabitsDone: allDoneNow }, activeHabits);
     showXpToast(xpAmount);
+
+    // Open the optional note sheet — pre-populate from any existing note for today
+    const today = toDateKey(new Date());
+    const existing = activeHabits.find(h => h.id === habitId)?.notes?.[today] ?? '';
+    setNoteInputText(existing);
+    setNoteSheet({ habitId, date: today });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markDone, awardXP, activeHabits, routines, markRoutineCompleteForToday]);
 
@@ -567,6 +577,67 @@ export default function TodayScreen() {
           <Text style={s.xpToastText}>+{xpToastAmount} XP</Text>
         </View>
       </Animated.View>
+
+      {/* ── Note sheet modal ──────────────────────────────────────────────── */}
+      <Modal
+        visible={noteSheet !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNoteSheet(null)}
+      >
+        <TouchableOpacity
+          style={s.noteOverlay}
+          activeOpacity={1}
+          onPress={() => setNoteSheet(null)}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={[s.noteSheet, { backgroundColor: C.surface }]}>
+                <View style={[s.noteDragHandle, { backgroundColor: C.border }]} />
+                <View style={s.noteSheetHeader}>
+                  <Ionicons name="journal-outline" size={20} color={C.tint} />
+                  <Text style={[s.noteSheetTitle, { color: C.text }]}>Add a note (optional)</Text>
+                </View>
+                {noteSheet && (
+                  <Text style={[s.noteSheetSub, { color: C.textMuted }]}>
+                    {habits.find(h => h.id === noteSheet.habitId)?.name ?? ''} · {noteSheet.date}
+                  </Text>
+                )}
+                <TextInput
+                  style={[s.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
+                  placeholder="How did it go? Any thoughts…"
+                  placeholderTextColor={C.textMuted}
+                  multiline
+                  value={noteInputText}
+                  onChangeText={setNoteInputText}
+                  autoFocus
+                  returnKeyType="default"
+                />
+                <View style={s.noteActions}>
+                  <TouchableOpacity
+                    style={[s.noteSaveBtn, { backgroundColor: C.tint }]}
+                    onPress={async () => {
+                      if (noteSheet && noteInputText.trim()) {
+                        await addNote(noteSheet.habitId, noteSheet.date, noteInputText.trim());
+                      }
+                      setNoteSheet(null);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.noteSaveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.noteSkipBtn}
+                    onPress={() => setNoteSheet(null)}
+                  >
+                    <Text style={[s.noteSkipBtnText, { color: C.textMuted }]}>Skip</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -616,7 +687,7 @@ function createStyles(C: Colors) {
     },
     catChipText: { fontSize: 12, fontWeight: '600' },
 
-    routinesSection: { paddingHorizontal: 16, paddingBottom: 4, gap: 8 },
+    routinesSection: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
     routinesSectionHeader: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingTop: 8, paddingBottom: 4,
@@ -631,6 +702,35 @@ function createStyles(C: Colors) {
       paddingHorizontal: 14, paddingVertical: 12,
     },
     routinesEmptyText: { flex: 1, fontSize: 13, fontWeight: '500' },
+
+    // Note sheet
+    noteOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'flex-end' },
+    noteSheet: {
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40,
+      gap: 0,
+    },
+    noteDragHandle: {
+      width: 36, height: 4, borderRadius: 2,
+      alignSelf: 'center', marginBottom: 20,
+    },
+    noteSheetHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4,
+    },
+    noteSheetTitle: { fontSize: 17, fontWeight: '700' },
+    noteSheetSub: { fontSize: 13, marginBottom: 14 },
+    noteInput: {
+      borderRadius: 12, borderWidth: 1,
+      paddingHorizontal: 14, paddingVertical: 12,
+      fontSize: 15, lineHeight: 22,
+      minHeight: 96, textAlignVertical: 'top',
+      marginBottom: 18,
+    },
+    noteActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    noteSaveBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    noteSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    noteSkipBtn: { paddingVertical: 14, paddingHorizontal: 8 },
+    noteSkipBtnText: { fontSize: 16, fontWeight: '500' },
   });
 }
 

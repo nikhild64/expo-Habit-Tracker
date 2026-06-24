@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useGamification } from '@/contexts/GamificationContext';
@@ -20,6 +20,11 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+function formatJournalDate(dateKey: string): string {
+  const d = new Date(dateKey + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 const DOW_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /** Returns all completion dates as a Set for O(1) calendar lookups. */
@@ -174,10 +179,17 @@ export default function HabitDetailScreen() {
   const styles = useMemo(() => createStyles(C), [C]);
   const cal = useMemo(() => createCalStyles(C), [C]);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { habits, markDone, updateHabit, deleteHabit, pauseHabit, archiveHabit, restoreHabit } = useHabitsStore();
+  const { habits, markDone, updateHabit, deleteHabit, pauseHabit, archiveHabit, restoreHabit, addNote } = useHabitsStore();
   const { awardXP } = useGamification();
 
   const habit = habits.find(h => h.id === id);
+
+  // ── Note edit state ─────────────────────────────────────────────────────────
+  const [noteEdit, setNoteEdit] = useState<{ date: string; text: string } | null>(null);
+
+  function openNoteEdit(dateKey: string) {
+    setNoteEdit({ date: dateKey, text: (habit?.notes ?? {})[dateKey] ?? '' });
+  }
 
   function confirmDelete() {
     Alert.alert(
@@ -251,7 +263,7 @@ export default function HabitDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ── Identity ── */}
+{/* ── Identity ── */}
         <View style={styles.identity}>
           <View style={[styles.iconBadge, { backgroundColor: habit.color }]}>
             <Ionicons name={habit.icon as never} size={40} color="#fff" />
@@ -424,6 +436,47 @@ export default function HabitDetailScreen() {
         <Text style={styles.sectionLabel}>Streak History</Text>
         <StreakCalendar habit={habit} />
 
+        {/* ── Journal ── */}
+        {habit.completions.length > 0 && (() => {
+          const sorted = [...habit.completions].sort((a, b) => b.localeCompare(a)).slice(0, 30);
+          return (
+            <>
+              <Text style={styles.sectionLabel}>Journal</Text>
+              <View style={[styles.journalCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+                {sorted.map((dateKey, idx) => {
+                  const note   = (habit.notes ?? {})[dateKey];
+                  const isLast = idx === sorted.length - 1;
+                  return (
+                    <TouchableOpacity
+                      key={dateKey}
+                      style={[
+                        styles.journalEntry,
+                        !isLast && { borderBottomWidth: 1, borderBottomColor: C.border },
+                      ]}
+                      onPress={() => openNoteEdit(dateKey)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.journalDot, { backgroundColor: note ? habit.color : C.border }]} />
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.journalDate, { color: C.text }]}>
+                          {formatJournalDate(dateKey)}
+                        </Text>
+                        <Text
+                          style={[styles.journalNote, { color: note ? C.textSecondary : C.textMuted }]}
+                          numberOfLines={2}
+                        >
+                          {note || 'Tap to add a note…'}
+                        </Text>
+                      </View>
+                      <Ionicons name="create-outline" size={16} color={C.textMuted} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          );
+        })()}
+
         {/* ── Actions ── */}
         <Text style={styles.sectionLabel}>Actions</Text>
         <View style={[styles.actionsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -517,6 +570,64 @@ export default function HabitDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ── Note edit modal ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={noteEdit !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNoteEdit(null)}
+      >
+        <TouchableOpacity
+          style={styles.noteOverlay}
+          activeOpacity={1}
+          onPress={() => setNoteEdit(null)}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={[styles.noteSheet, { backgroundColor: C.surface }]}>
+                <View style={[styles.noteDragHandle, { backgroundColor: C.border }]} />
+                <View style={styles.noteSheetHeader}>
+                  <Ionicons name="journal-outline" size={20} color={C.tint} />
+                  <Text style={[styles.noteSheetTitle, { color: C.text }]}>
+                    {noteEdit ? formatJournalDate(noteEdit.date) : ''}
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.noteInput, { backgroundColor: C.surfaceAlt, borderColor: C.border, color: C.text }]}
+                  placeholder="How did it go? Any thoughts…"
+                  placeholderTextColor={C.textMuted}
+                  multiline
+                  value={noteEdit?.text ?? ''}
+                  onChangeText={t => setNoteEdit(prev => prev ? { ...prev, text: t } : null)}
+                  autoFocus
+                  returnKeyType="default"
+                />
+                <View style={styles.noteActions}>
+                  <TouchableOpacity
+                    style={[styles.noteSaveBtn, { backgroundColor: C.tint }]}
+                    onPress={() => {
+                      if (noteEdit) {
+                        addNote(habit.id, noteEdit.date, noteEdit.text.trim());
+                      }
+                      setNoteEdit(null);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.noteSaveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.noteSkipBtn}
+                    onPress={() => setNoteEdit(null)}
+                  >
+                    <Text style={[styles.noteSkipBtnText, { color: C.textMuted }]}>Discard</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -648,6 +759,47 @@ function createStyles(C: Colors) { return StyleSheet.create({
   notFoundText: { fontSize: 16, color: C.textMuted },
   backLink: { paddingVertical: 10 },
   backLinkText: { fontSize: 15, color: C.tint, fontWeight: '600' },
+
+  // Journal
+  journalCard: {
+    borderRadius: 14, borderWidth: 1, overflow: 'hidden',
+  },
+  journalEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  journalDot: {
+    width: 10, height: 10, borderRadius: 5, flexShrink: 0,
+  },
+  journalDate: { fontSize: 13, fontWeight: '600' },
+  journalNote: { fontSize: 13, lineHeight: 18 },
+
+  // Note edit modal
+  noteOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'flex-end' },
+  noteSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40,
+  },
+  noteDragHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginBottom: 20,
+  },
+  noteSheetHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16,
+  },
+  noteSheetTitle: { fontSize: 17, fontWeight: '700' },
+  noteInput: {
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, lineHeight: 22,
+    minHeight: 96, textAlignVertical: 'top',
+    marginBottom: 18,
+  },
+  noteActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  noteSaveBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  noteSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  noteSkipBtn: { paddingVertical: 14, paddingHorizontal: 8 },
+  noteSkipBtnText: { fontSize: 16, fontWeight: '500' },
 }); }
 
 // ── Calendar styles ───────────────────────────────────────────────────────────
