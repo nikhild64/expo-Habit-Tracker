@@ -25,6 +25,16 @@ import type { Colors } from '@/lib/ui/theme';
 
 const CATEGORIES = Object.keys(CATEGORY_META) as HabitCategory[];
 
+type FreqKind = Frequency['kind'];
+const FREQ_OPTIONS: { kind: FreqKind; label: string; icon: string }[] = [
+  { kind: 'daily',    label: 'Daily',        icon: 'sunny-outline'     },
+  { kind: 'weekdays', label: 'Weekdays',      icon: 'briefcase-outline' },
+  { kind: 'weekends', label: 'Weekends',      icon: 'cafe-outline'      },
+  { kind: 'weekly',   label: 'Specific days', icon: 'calendar-outline'  },
+  { kind: 'xperweek', label: 'X per week',    icon: 'repeat-outline'    },
+  { kind: 'interval', label: 'Every N days',  icon: 'timer-outline'     },
+];
+
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_FULL   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -60,9 +70,15 @@ export default function NewHabitScreen() {
   const [name, setName]       = useState(existing?.name ?? '');
   const [icon, setIcon]       = useState(existing?.icon ?? HABIT_ICONS[0]);
   const [color, setColor]     = useState(existing?.color ?? HABIT_COLORS[0]);
-  const [kind, setKind]       = useState<'daily' | 'weekly'>(existing?.frequency.kind ?? 'daily');
+  const [kind, setKind]       = useState<FreqKind>(existing?.frequency.kind ?? 'daily');
   const [weekdays, setWeekdays] = useState<number[]>(
     existing?.frequency.kind === 'weekly' ? existing.frequency.weekdays : [2, 3, 4, 5, 6],
+  );
+  const [xperweekCount, setXperweekCount] = useState(
+    existing?.frequency.kind === 'xperweek' ? existing.frequency.count : 3,
+  );
+  const [intervalDays, setIntervalDays] = useState(
+    existing?.frequency.kind === 'interval' ? existing.frequency.days : 2,
   );
   const [hour, setHour]       = useState(existing?.frequency.hour ?? 8);
   const [minute, setMinute]   = useState(existing?.frequency.minute ?? 0);
@@ -82,10 +98,12 @@ export default function NewHabitScreen() {
       setKind(existing.frequency.kind);
       setHour(existing.frequency.hour);
       setMinute(existing.frequency.minute);
-      if (existing.frequency.kind === 'weekly') setWeekdays(existing.frequency.weekdays);
+      if (existing.frequency.kind === 'weekly')   setWeekdays(existing.frequency.weekdays);
+      if (existing.frequency.kind === 'xperweek') setXperweekCount(existing.frequency.count);
+      if (existing.frequency.kind === 'interval') setIntervalDays(existing.frequency.days);
       setCategory(existing.category ?? 'Other');
     }
-  }, [existing?.id]);
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleWeekday(day: number) {
     setWeekdays(prev =>
@@ -100,9 +118,12 @@ export default function NewHabitScreen() {
       Alert.alert('Select days', 'Choose at least one day.'); return;
     }
     const frequency: Frequency =
-      kind === 'daily'
-        ? { kind: 'daily', hour, minute }
-        : { kind: 'weekly', weekdays, hour, minute };
+      kind === 'daily'    ? { kind: 'daily',    hour, minute } :
+      kind === 'weekly'   ? { kind: 'weekly',   weekdays, hour, minute } :
+      kind === 'weekdays' ? { kind: 'weekdays', hour, minute } :
+      kind === 'weekends' ? { kind: 'weekends', hour, minute } :
+      kind === 'xperweek' ? { kind: 'xperweek', count: xperweekCount, hour, minute } :
+      /* interval */        { kind: 'interval',  days:  intervalDays,  hour, minute };
     setSaving(true);
     try {
       if (existing) {
@@ -213,20 +234,27 @@ export default function NewHabitScreen() {
 
           {/* Frequency */}
           <Section label="Frequency" C={C}>
-            <View style={[s.segmented, { backgroundColor: C.surfaceAlt }]}>
-              {(['daily', 'weekly'] as const).map(k => (
-                <TouchableOpacity
-                  key={k}
-                  style={[s.segment, kind === k && { backgroundColor: C.surface }]}
-                  onPress={() => setKind(k)}
-                >
-                  <Text style={[s.segText, { color: kind === k ? C.text : C.textSecondary, fontWeight: kind === k ? '600' : '500' }]}>
-                    {k === 'daily' ? 'Daily' : 'Weekly'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* Type picker chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {FREQ_OPTIONS.map(opt => {
+                const active = kind === opt.kind;
+                return (
+                  <TouchableOpacity
+                    key={opt.kind}
+                    style={[s.freqChip, { borderColor: active ? color : C.border, backgroundColor: active ? color : C.surfaceAlt }]}
+                    onPress={() => setKind(opt.kind)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={opt.icon as never} size={14} color={active ? '#fff' : C.textSecondary} />
+                    <Text style={[s.freqChipText, { color: active ? '#fff' : C.textSecondary, fontWeight: active ? '700' : '500' }]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
+            {/* Specific days picker — for weekly */}
             {kind === 'weekly' && (
               <View style={s.weekRow}>
                 {DAY_LABELS.map((label, i) => {
@@ -245,6 +273,60 @@ export default function NewHabitScreen() {
                 })}
               </View>
             )}
+
+            {/* Count stepper — for xperweek */}
+            {kind === 'xperweek' && (
+              <View style={[s.stepper, { backgroundColor: C.surface, borderColor: C.border }]}>
+                <TouchableOpacity
+                  onPress={() => setXperweekCount(c => Math.max(1, c - 1))}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="remove-circle" size={32} color={xperweekCount > 1 ? C.tint : C.border} />
+                </TouchableOpacity>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[s.stepperValue, { color: C.text }]}>{xperweekCount}</Text>
+                  <Text style={[s.stepperUnit, { color: C.textMuted }]}>times per week</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setXperweekCount(c => Math.min(6, c + 1))}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="add-circle" size={32} color={xperweekCount < 6 ? C.tint : C.border} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Days stepper — for interval */}
+            {kind === 'interval' && (
+              <View style={[s.stepper, { backgroundColor: C.surface, borderColor: C.border }]}>
+                <TouchableOpacity
+                  onPress={() => setIntervalDays(d => Math.max(2, d - 1))}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="remove-circle" size={32} color={intervalDays > 2 ? C.tint : C.border} />
+                </TouchableOpacity>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[s.stepperValue, { color: C.text }]}>{intervalDays}</Text>
+                  <Text style={[s.stepperUnit, { color: C.textMuted }]}>days between reminders</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIntervalDays(d => Math.min(30, d + 1))}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="add-circle" size={32} color={intervalDays < 30 ? C.tint : C.border} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Summary label */}
+            <Text style={[s.freqSummary, { color: C.textMuted }]}>
+              {kind === 'daily'    && 'Repeats every day'}
+              {kind === 'weekdays' && 'Repeats Monday to Friday'}
+              {kind === 'weekends' && 'Repeats Saturday and Sunday'}
+              {kind === 'weekly'   && `Repeats on selected days (${weekdays.length} selected)`}
+              {kind === 'xperweek' && `Complete any ${xperweekCount} days per week`}
+              {kind === 'interval' && `Complete once every ${intervalDays} days`}
+            </Text>
           </Section>
 
           {/* Time */}
@@ -327,11 +409,20 @@ function createStyles(C: Colors) {
     iconOption: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     colorRow: { flexDirection: 'row', gap: 10 },
     colorSwatch: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-    segmented: { flexDirection: 'row', borderRadius: 10, padding: 3 },
-    segment: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-    segText: { fontSize: 14 },
+    freqChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 8,
+    },
+    freqChipText: { fontSize: 13 },
     weekRow: { flexDirection: 'row', gap: 6 },
     dayBtn: { flex: 1, alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingVertical: 8, gap: 2 },
+    stepper: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      borderRadius: 14, borderWidth: 1, paddingHorizontal: 20, paddingVertical: 14,
+    },
+    stepperValue: { fontSize: 32, fontWeight: '700', letterSpacing: -1 },
+    stepperUnit:  { fontSize: 12, marginTop: 2 },
+    freqSummary:  { fontSize: 12, textAlign: 'center' },
     catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 12, paddingVertical: 7 },
     catChipText: { fontSize: 13 },

@@ -75,35 +75,99 @@ export async function scheduleHabitReminders(habit: Habit): Promise<string[]> {
     categoryIdentifier: HABIT_CATEGORY_ID,
   };
 
-  if (frequency.kind === 'daily') {
-    const id = await Notifications.scheduleNotificationAsync({
-      content,
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: frequency.hour,
-        minute: frequency.minute,
-        ...androidTrigger,
-      },
-    });
-    return [id];
-  }
+  const { hour, minute } = frequency;
 
-  // Weekly: one notification per selected weekday
-  const ids: string[] = [];
-  for (const weekday of frequency.weekdays) {
-    const id = await Notifications.scheduleNotificationAsync({
-      content,
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        weekday,           // 1 = Sunday … 7 = Saturday (Expo convention)
-        hour: frequency.hour,
-        minute: frequency.minute,
-        ...androidTrigger,
-      },
-    });
-    ids.push(id);
+  switch (frequency.kind) {
+    case 'daily':
+    case 'xperweek': {
+      // xperweek: one daily notification — user completes whichever days they choose
+      const id = await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour,
+          minute,
+          ...androidTrigger,
+        },
+      });
+      return [id];
+    }
+
+    case 'weekly': {
+      // One WEEKLY trigger per selected weekday (1=Sun … 7=Sat, Expo convention)
+      const ids: string[] = [];
+      for (const weekday of frequency.weekdays) {
+        const id = await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday,
+            hour,
+            minute,
+            ...androidTrigger,
+          },
+        });
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    case 'weekdays': {
+      // Mon(2)–Fri(6) in Expo weekday numbering (1=Sun … 7=Sat)
+      const WEEKDAY_NUMS = [2, 3, 4, 5, 6];
+      const ids: string[] = [];
+      for (const weekday of WEEKDAY_NUMS) {
+        const id = await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday,
+            hour,
+            minute,
+            ...androidTrigger,
+          },
+        });
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    case 'weekends': {
+      // Sun(1) and Sat(7) in Expo weekday numbering
+      const WEEKEND_NUMS = [1, 7];
+      const ids: string[] = [];
+      for (const weekday of WEEKEND_NUMS) {
+        const id = await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday,
+            hour,
+            minute,
+            ...androidTrigger,
+          },
+        });
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    case 'interval': {
+      // One-shot TIME_INTERVAL notification; rescheduled after each completion
+      const id = await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: frequency.days * 86_400,
+          ...androidTrigger,
+        },
+      });
+      return [id];
+    }
+
+    default:
+      return [];
   }
-  return ids;
 }
 
 /**

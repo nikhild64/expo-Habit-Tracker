@@ -304,7 +304,10 @@ export default function OnboardingScreen() {
             <TouchableOpacity
               onPress={async () => {
                 await markOnboardingDone();
-                router.replace('/templates' as never);
+                // Establish the tabs stack as the root first so the back button
+                // on the templates screen has somewhere to land.
+                router.replace('/(tabs)' as never);
+                router.push('/templates' as never);
               }}
               style={s.browseBtn}
               activeOpacity={0.8}

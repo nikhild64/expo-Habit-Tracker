@@ -35,13 +35,20 @@ function dateLabel(): string {
 }
 
 function formatFreq(habit: Habit): string {
-  const f = habit.frequency;
+  const f      = habit.frequency;
   const period = f.hour >= 12 ? 'PM' : 'AM';
-  const h = f.hour % 12 || 12;
-  const time = `${h}:${f.minute.toString().padStart(2, '0')} ${period}`;
-  if (f.kind === 'daily') return `Daily · ${time}`;
-  const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return `${f.weekdays.map(d => DAY[d - 1]).join(', ')} · ${time}`;
+  const h      = f.hour % 12 || 12;
+  const time   = `${h}:${f.minute.toString().padStart(2, '0')} ${period}`;
+  const DAY    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  switch (f.kind) {
+    case 'daily':    return `Daily · ${time}`;
+    case 'weekly':   return `${f.weekdays.map(d => DAY[d - 1]).join(', ')} · ${time}`;
+    case 'weekdays': return `Mon–Fri · ${time}`;
+    case 'weekends': return `Sat–Sun · ${time}`;
+    case 'xperweek': return `${f.count}× per week · ${time}`;
+    case 'interval': return `Every ${f.days} days · ${time}`;
+    default:         return time;
+  }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────

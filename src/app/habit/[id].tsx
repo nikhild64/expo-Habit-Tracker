@@ -28,15 +28,21 @@ function getCompletionDateKeys(habit: Habit): Set<string> {
 }
 
 function formatFrequencyFull(habit: Habit): string {
-  const f = habit.frequency;
-  const h = f.hour % 12 || 12;
-  const m = f.minute.toString().padStart(2, '0');
-  const period = f.hour >= 12 ? 'PM' : 'AM';
-  const time = `${h}:${m} ${period}`;
-  if (f.kind === 'daily') return `Every day at ${time}`;
+  const f        = habit.frequency;
+  const h        = f.hour % 12 || 12;
+  const m        = f.minute.toString().padStart(2, '0');
+  const period   = f.hour >= 12 ? 'PM' : 'AM';
+  const time     = `${h}:${m} ${period}`;
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const days = f.weekdays.map(d => DAY_NAMES[d - 1]).join(', ');
-  return `${days} at ${time}`;
+  switch (f.kind) {
+    case 'daily':    return `Every day at ${time}`;
+    case 'weekly':   return `${f.weekdays.map(d => DAY_NAMES[d - 1]).join(', ')} at ${time}`;
+    case 'weekdays': return `Monday to Friday at ${time}`;
+    case 'weekends': return `Saturday & Sunday at ${time}`;
+    case 'xperweek': return `${f.count} times per week at ${time}`;
+    case 'interval': return `Every ${f.days} days at ${time}`;
+    default:         return `at ${time}`;
+  }
 }
 
 // ── Streak Calendar ───────────────────────────────────────────────────────────
@@ -210,8 +216,8 @@ export default function HabitDetailScreen() {
   });
 
   const stats = useMemo(
-    () => computeHabitStats(habit.completions ?? [], habit.createdAt),
-    [habit.completions, habit.createdAt],
+    () => computeHabitStats(habit.completions ?? [], habit.createdAt, habit.frequency),
+    [habit.completions, habit.createdAt, habit.frequency],
   );
 
   const momentumColor =

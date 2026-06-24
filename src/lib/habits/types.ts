@@ -1,6 +1,10 @@
 export type Frequency =
-  | { kind: 'daily'; hour: number; minute: number }
-  | { kind: 'weekly'; weekdays: number[]; hour: number; minute: number };
+  | { kind: 'daily';    hour: number; minute: number }
+  | { kind: 'weekly';   weekdays: number[]; hour: number; minute: number }
+  | { kind: 'xperweek'; count: number;      hour: number; minute: number }
+  | { kind: 'weekdays'; hour: number; minute: number }
+  | { kind: 'weekends'; hour: number; minute: number }
+  | { kind: 'interval'; days: number;       hour: number; minute: number };
 
 export type HabitCategory =
   | 'Health'

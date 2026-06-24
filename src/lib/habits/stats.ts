@@ -1,3 +1,4 @@
+import type { Frequency } from './types';
 import { toDateKey } from './streak';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -8,18 +9,88 @@ function daysAgoKey(n: number): string {
   return toDateKey(d);
 }
 
+// ── Expected-completions helpers ──────────────────────────────────────────────
+
+/**
+ * Returns the number of days in the `[startKey, endKey]` window that are
+ * scheduled for the given frequency.  Used as the denominator for completion-
+ * rate calculations so that weekday-only or xperweek habits are not penalised
+ * for off-schedule days.
+ */
+function expectedCompletions(
+  frequency: Frequency | undefined,
+  startKey: string,
+  endKey: string,
+  dayCount: number,
+): number {
+  if (!frequency) return dayCount;
+
+  switch (frequency.kind) {
+    case 'daily':
+      return dayCount;
+
+    case 'weekly': {
+      // f.weekdays: 1=Sun … 7=Sat (Expo convention → JS getDay = value - 1)
+      const scheduled = new Set(frequency.weekdays.map(w => w - 1));
+      let n = 0;
+      const cur = new Date(startKey + 'T00:00:00');
+      const end = new Date(endKey   + 'T00:00:00');
+      while (cur <= end) { if (scheduled.has(cur.getDay())) n++; cur.setDate(cur.getDate() + 1); }
+      return n;
+    }
+
+    case 'weekdays': {
+      let n = 0;
+      const cur = new Date(startKey + 'T00:00:00');
+      const end = new Date(endKey   + 'T00:00:00');
+      while (cur <= end) {
+        const dow = cur.getDay();
+        if (dow >= 1 && dow <= 5) n++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return n;
+    }
+
+    case 'weekends': {
+      let n = 0;
+      const cur = new Date(startKey + 'T00:00:00');
+      const end = new Date(endKey   + 'T00:00:00');
+      while (cur <= end) {
+        const dow = cur.getDay();
+        if (dow === 0 || dow === 6) n++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return n;
+    }
+
+    case 'xperweek':
+      // Expected completions ≈ count per week × weeks in window
+      return Math.max(1, Math.ceil((dayCount / 7) * frequency.count));
+
+    case 'interval':
+      // Expected completions ≈ one per `days` days
+      return Math.max(1, Math.ceil(dayCount / frequency.days));
+
+    default:
+      return dayCount;
+  }
+}
+
 // ── Core analytics ────────────────────────────────────────────────────────────
 
 /**
- * Fraction (0–1) of days in the last `windowDays` when the habit was completed.
+ * Fraction (0–1) of expected completions in the last `windowDays` that were
+ * actually logged.
  *
- * Respects `createdAt` so habits that are newer than the window aren't penalised
- * for days before they existed.
+ * The denominator is frequency-aware: a weekday habit in a 7-day window has
+ * 5 expected completions, not 7.  Respects `createdAt` so habits that are
+ * newer than the window aren't penalised for days before they existed.
  */
 export function completionRate(
   completions: string[],
-  windowDays: number,
-  createdAt: string,
+  windowDays:  number,
+  createdAt:   string,
+  frequency?:  Frequency,
 ): number {
   if (completions.length === 0) return 0;
 
@@ -34,8 +105,10 @@ export function completionRate(
 
   if (dayCount <= 0) return 0;
 
-  const hits = completions.filter(d => d >= effectiveStart && d <= today).length;
-  return Math.min(1, hits / dayCount);
+  const hits     = completions.filter(d => d >= effectiveStart && d <= today).length;
+  const expected = expectedCompletions(frequency, effectiveStart, today, dayCount);
+
+  return expected > 0 ? Math.min(1, hits / expected) : 0;
 }
 
 /**
@@ -60,9 +133,6 @@ export function bestDayOfWeek(completions: string[]): string | null {
 /**
  * Average length (in days) of all consecutive completion runs, across the
  * entire history — not just the current streak.
- *
- * Useful for understanding "when I do this habit, how long do I usually keep
- * it going?" independently of the live streak.
  */
 export function averageRunLength(completions: string[]): number {
   if (completions.length === 0) return 0;
@@ -90,17 +160,16 @@ export function averageRunLength(completions: string[]): number {
 /**
  * Momentum score (0–100): a single-number summary of recent consistency.
  *
- * Combines the 7-day rate (short-term, 65% weight) and 30-day rate (medium-term,
- * 35% weight). This makes the score respond quickly to recent behaviour while
- * staying anchored to the broader monthly trend.
- *
- *   ≥ 71  → on a roll (green)
- *   41-70 → building (orange)
- *   ≤ 40  → needs attention (red)
+ * Combines the 7-day rate (65% weight) and 30-day rate (35% weight).
+ * Both rates use the frequency-aware denominator when `frequency` is provided.
  */
-export function momentumScore(completions: string[], createdAt: string): number {
-  const r7  = completionRate(completions, 7,  createdAt);
-  const r30 = completionRate(completions, 30, createdAt);
+export function momentumScore(
+  completions: string[],
+  createdAt:   string,
+  frequency?:  Frequency,
+): number {
+  const r7  = completionRate(completions, 7,  createdAt, frequency);
+  const r30 = completionRate(completions, 30, createdAt, frequency);
   return Math.round((r7 * 0.65 + r30 * 0.35) * 100);
 }
 
@@ -108,14 +177,18 @@ export function momentumScore(completions: string[], createdAt: string): number 
  * Bundle all stats into one call.  Each value is independently memoisable via
  * the individual functions above; this is a convenience wrapper for screens.
  */
-export function computeHabitStats(completions: string[], createdAt: string) {
+export function computeHabitStats(
+  completions: string[],
+  createdAt:   string,
+  frequency?:  Frequency,
+) {
   return {
-    rate7d:    completionRate(completions, 7,  createdAt),
-    rate30d:   completionRate(completions, 30, createdAt),
-    rate90d:   completionRate(completions, 90, createdAt),
-    bestDay:   bestDayOfWeek(completions),
-    total:     completions.length,
-    avgRun:    averageRunLength(completions),
-    momentum:  momentumScore(completions, createdAt),
+    rate7d:   completionRate(completions, 7,  createdAt, frequency),
+    rate30d:  completionRate(completions, 30, createdAt, frequency),
+    rate90d:  completionRate(completions, 90, createdAt, frequency),
+    bestDay:  bestDayOfWeek(completions),
+    total:    completions.length,
+    avgRun:   averageRunLength(completions),
+    momentum: momentumScore(completions, createdAt, frequency),
   };
 }

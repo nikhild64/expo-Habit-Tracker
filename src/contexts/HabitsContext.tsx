@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
-import { computeStreak, isDoneToday, toDateKey } from '@/lib/habits/streak';
+import { computeFrequencyAwareStreak, computeStreak, isDoneToday, toDateKey } from '@/lib/habits/streak';
 import type { Habit } from '@/lib/habits/types';
 import { cancelHabitReminders, scheduleHabitReminders } from '@/lib/notifications/schedule';
 
@@ -81,10 +81,11 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
    *
    * Freeze rules:
    * - Only active habits are eligible (paused/archived are never decayed)
-   * - A freeze fires when yesterday is NOT in effective completions, the day
-   *   before yesterday IS (meaning a 1-day gap exists), and at least one freeze
-   *   token remains
-   * - Each freeze token can cover exactly one missed day
+   * - For daily/weekly/weekdays/weekends: a freeze fires when yesterday was a
+   *   scheduled day that the user missed, the day before IS in effective
+   *   completions, and a freeze token is available
+   * - xperweek/interval habits use flexible streaks and are NOT subject to
+   *   per-day freeze logic
    */
   function applyStreakCorrection(raw: Habit[]): Habit[] {
     const yesterday  = toDateKey(new Date(Date.now() - 86_400_000));
@@ -101,19 +102,37 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       // Merge completions + existing freeze dates for streak computation
       let effective = [...new Set([...completions, ...freezeUsedDates])];
 
-      // Auto-apply a freeze if the user missed exactly yesterday
+      // Per-day freeze only makes sense for fixed-schedule frequency kinds
+      const isFlexFreq =
+        h.frequency.kind === 'xperweek' || h.frequency.kind === 'interval';
+
+      // Check whether yesterday was a scheduled day for this habit
+      const yesterdayDOW = new Date(yesterday + 'T00:00:00').getDay();
+      const yesterdayWasScheduled = (() => {
+        switch (h.frequency.kind) {
+          case 'daily':    return true;
+          case 'weekly':   return h.frequency.weekdays.includes(yesterdayDOW + 1);
+          case 'weekdays': return yesterdayDOW >= 1 && yesterdayDOW <= 5;
+          case 'weekends': return yesterdayDOW === 0 || yesterdayDOW === 6;
+          default:         return false; // flex types handled above
+        }
+      })();
+
+      // Auto-apply a freeze if the user missed exactly a scheduled yesterday
       if (
-        !effective.includes(yesterday) &&      // yesterday unfinished
-        effective.includes(dayBefore)  &&      // day-before was done (streak was alive)
-        freezesAvailable > 0           &&      // has a token
-        !freezeUsedDates.includes(yesterday)   // haven't already frozen yesterday
+        !isFlexFreq                            &&
+        yesterdayWasScheduled                  &&
+        !effective.includes(yesterday)         &&
+        effective.includes(dayBefore)          &&
+        freezesAvailable > 0                   &&
+        !freezeUsedDates.includes(yesterday)
       ) {
         freezeUsedDates  = [...freezeUsedDates, yesterday];
         freezesAvailable = freezesAvailable - 1;
         effective        = [...new Set([...completions, ...freezeUsedDates])];
       }
 
-      const { streak, bestStreak } = computeStreak(effective);
+      const { streak, bestStreak } = computeFrequencyAwareStreak(effective, h.frequency);
 
       return {
         ...h,
@@ -211,11 +230,12 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
 
     // Include freeze dates when computing streak so freeze-protected days count
     const effective          = [...new Set([...newCompletions, ...freezeUsedDates])];
-    const { streak, bestStreak } = computeStreak(effective);
+    const { streak, bestStreak } = computeFrequencyAwareStreak(effective, habit.frequency);
 
-    // Award one freeze token every 7-day milestone (max 3)
-    const currentFreezes   = habit.freezesAvailable ?? 1;
-    const newFreezesAvailable = wasAdded && streak > 0 && streak % 7 === 0
+    // Award one freeze token every 7-day milestone (max 3) — only for fixed-schedule habits
+    const currentFreezes      = habit.freezesAvailable ?? 1;
+    const isFlexFreq          = habit.frequency.kind === 'xperweek' || habit.frequency.kind === 'interval';
+    const newFreezesAvailable = (!isFlexFreq && wasAdded && streak > 0 && streak % 7 === 0)
       ? Math.min(3, currentFreezes + 1)
       : currentFreezes;
 
@@ -224,10 +244,29 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       ? new Date(sorted[0] + 'T00:00:00').toISOString()
       : null;
 
+    // For interval habits: reschedule the one-shot notification so the next
+    // reminder fires `days` days from today's completion, not from creation time.
+    let notificationIds = habit.notificationIds;
+    if (wasAdded && habit.frequency.kind === 'interval') {
+      await cancelHabitReminders(habit.notificationIds);
+      notificationIds = await scheduleHabitReminders(
+        { ...habit, completions: newCompletions },
+      );
+    }
+
     commit(
       habitsRef.current.map(h =>
         h.id === id
-          ? { ...h, completions: newCompletions, completionTimestamps, streak, bestStreak, lastCompletedISO, freezesAvailable: newFreezesAvailable }
+          ? {
+              ...h,
+              completions: newCompletions,
+              completionTimestamps,
+              streak,
+              bestStreak,
+              lastCompletedISO,
+              freezesAvailable: newFreezesAvailable,
+              notificationIds,
+            }
           : h,
       ),
     );
