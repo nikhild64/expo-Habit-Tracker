@@ -47,6 +47,9 @@ const androidTrigger = Platform.OS === 'android' ? { channelId: HABIT_CHANNEL_ID
  * - Daily habits  → one DAILY trigger (repeats every day at hour:minute)
  * - Weekly habits → one WEEKLY trigger per selected weekday
  *
+ * If the habit has multiple reminders (`reminders: Reminder[]`), schedules one
+ * trigger per reminder. Each reminder can optionally limit to specific weekdays.
+ *
  * Returns the array of notification IDs. Store them on the habit so they can
  * be cancelled precisely without touching other habits' notifications.
  */
@@ -58,8 +61,55 @@ export async function scheduleHabitReminders(habit: Habit): Promise<string[]> {
     return [];
   }
 
-  // Quiet hours — skip scheduling if the reminder falls within the DND window.
   const quietHours = await loadQuietHours();
+
+  // Multi-reminder path: if reminders[] has more than one entry, schedule all of them.
+  // Each reminder fires daily (optionally filtered by weekdays).
+  if (habit.reminders && habit.reminders.length > 1) {
+    const baseContent: Notifications.NotificationContentInput = {
+      title: habit.name,
+      body: 'Time to build your streak. Tap to log it.',
+      data: { screen: '/habit', habitId: habit.id },
+      categoryIdentifier: HABIT_CATEGORY_ID,
+    };
+
+    const ids: string[] = [];
+    for (const r of habit.reminders) {
+      if (isInQuietHours(r.hour, r.minute, quietHours)) continue;
+      const content: Notifications.NotificationContentInput = r.label
+        ? { ...baseContent, body: r.label }
+        : baseContent;
+      if (r.weekdays && r.weekdays.length > 0) {
+        for (const weekday of r.weekdays) {
+          const id = await Notifications.scheduleNotificationAsync({
+            content,
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+              weekday,
+              hour: r.hour,
+              minute: r.minute,
+              ...androidTrigger,
+            },
+          });
+          ids.push(id);
+        }
+      } else {
+        const id = await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: r.hour,
+            minute: r.minute,
+            ...androidTrigger,
+          },
+        });
+        ids.push(id);
+      }
+    }
+    return ids;
+  }
+
+  // Quiet hours — skip scheduling if the reminder falls within the DND window.
   if (isInQuietHours(habit.frequency.hour, habit.frequency.minute, quietHours)) {
     if (__DEV__) console.warn(
       `[schedule] Reminder at ${habit.frequency.hour}:${habit.frequency.minute} falls within quiet hours; skipping.`,

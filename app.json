@@ -2,14 +2,17 @@
   "expo": {
     "name": "Habitly",
     "slug": "habit-tracker",
-    "version": "1.0.14",
+    "version": "1.0.20",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "habittracker",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.nikhild64.habittracker"
+      "bundleIdentifier": "com.nikhild64.habittracker",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID to unlock Habitly and protect your habit data."
+      }
     },
     "android": {
       "permissions": [
@@ -48,7 +51,60 @@
           "defaultChannel": "habit-reminders"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Use Face ID to unlock Habitly and protect your habit data."
+        }
+      ],
+      [
+        "expo-quick-actions",
+        {
+          "androidIcons": {
+            "add": {
+              "foregroundImage": "./assets/images/shortcuts/add.png",
+              "backgroundColor": "#FF8B1F"
+            },
+            "today": {
+              "foregroundImage": "./assets/images/shortcuts/today.png",
+              "backgroundColor": "#10B981"
+            },
+            "insights": {
+              "foregroundImage": "./assets/images/shortcuts/insights.png",
+              "backgroundColor": "#8B5CF6"
+            },
+            "journal": {
+              "foregroundImage": "./assets/images/shortcuts/journal.png",
+              "backgroundColor": "#3B82F6"
+            }
+          }
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "HabitlyTodayWidget",
+              "label": "Habitly · Today",
+              "minWidth": "180dp",
+              "minHeight": "100dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "minResizeWidth": "110dp",
+              "minResizeHeight": "60dp",
+              "maxResizeWidth": "360dp",
+              "maxResizeHeight": "320dp",
+              "resizeMode": "horizontal|vertical",
+              "description": "Your habits for today",
+              "previewImage": "./assets/images/icon.png",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -66,7 +122,6 @@
         "projectId": "1834290c-f62c-483e-b327-6a3edd19ee50"
       }
     },
-    "owner": "nikhild64",
-    "privacy": "unlisted"
+    "owner": "nikhild64"
   }
 }

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
@@ -381,8 +382,18 @@ function HabitStreakRow({ habit }: { habit: Habit }) {
 export default function StreaksScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { habits, loading } = useHabitsStore();
+  const { habits, loading, loadFresh } = useHabitsStore();
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.selectionAsync().catch(() => null);
+    try { await loadFresh(); } finally {
+      setRefreshing(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
+    }
+  }, [loadFresh]);
 
   // Archived habits are excluded from all Progress metrics
   const visibleHabits = useMemo(
@@ -426,7 +437,18 @@ export default function StreaksScreen() {
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor={C.bg} />
 
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={C.tint}
+            colors={[C.tint]}
+          />
+        }
+      >
         <Text style={s.heading}>Progress</Text>
 
         {/* ── Summary cards ── */}
@@ -516,7 +538,7 @@ export default function StreaksScreen() {
 
 function createStyles(C: Colors) { return StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 20, paddingTop: 8, gap: 12, paddingBottom: 48 },
+  content: { padding: 20, paddingTop: 8, gap: 12, paddingBottom: 110 },
   heading: { fontSize: 30, fontWeight: '700', color: C.text, letterSpacing: -0.5, paddingTop: 8, marginBottom: 4 },
 
   sectionLabel: {

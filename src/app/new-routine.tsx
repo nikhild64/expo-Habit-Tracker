@@ -20,6 +20,7 @@ import { ClockFace } from '@/components/ClockFace';
 import { useHabitsStore } from '@/contexts/HabitsContext';
 import { useRoutinesStore } from '@/contexts/RoutinesContext';
 import { useColors } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
 import { HABIT_COLORS, HABIT_ICONS } from '@/lib/ui/colors';
 import type { Colors } from '@/lib/ui/theme';
 
@@ -49,6 +50,7 @@ export default function NewRoutineScreen() {
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const { routines, addRoutine, updateRoutine } = useRoutinesStore();
   const { habits } = useHabitsStore();
+  const toast = useToast();
   const existing = edit ? routines.find(r => r.id === edit) : undefined;
 
   const activeHabits = useMemo(
@@ -91,21 +93,23 @@ export default function NewRoutineScreen() {
 
   async function save() {
     const trimmed = name.trim();
-    if (!trimmed) { Alert.alert('Name required', 'Please enter a routine name.'); return; }
+    if (!trimmed) { toast.error('Please enter a routine name'); return; }
     if (habitIds.length === 0) {
-      Alert.alert('Select habits', 'Choose at least one habit for this routine.'); return;
+      toast.error('Choose at least one habit for this routine'); return;
     }
     setSaving(true);
     try {
       const reminderTime = enableReminder ? { hour, minute } : null;
       if (existing) {
         await updateRoutine(existing.id, { name: trimmed, icon, color, habitIds, reminderTime });
+        toast.success(`Updated "${trimmed}"`);
       } else {
         await addRoutine({ name: trimmed, icon, color, habitIds, reminderTime });
+        toast.success(`Added "${trimmed}"`);
       }
       router.back();
     } catch (e) {
-      Alert.alert('Error', String(e));
+      toast.error(`Could not save routine: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSaving(false);
     }

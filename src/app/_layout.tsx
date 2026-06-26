@@ -1,9 +1,13 @@
 // Importing setup.ts evaluates it at module load time, registering the
 // foreground notification handler before any screen renders.
+import { ToastOverlay } from '@/components/ui';
+import { AppLockProvider } from '@/contexts/AppLockContext';
 import { GamificationProvider } from '@/contexts/GamificationContext';
 import { HabitsProvider } from '@/contexts/HabitsContext';
+import { MoodProvider } from '@/contexts/MoodContext';
 import { RoutinesProvider } from '@/contexts/RoutinesContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import { useInAppUpdate } from '@/hooks/use-in-app-update';
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
 import { computeStreak, toDateKey } from '@/lib/habits/streak';
@@ -14,6 +18,7 @@ import {
     setupAndroidChannel,
 } from '@/lib/notifications/setup';
 import { hasSeenOnboarding } from '@/lib/onboarding';
+import { setupQuickActions, subscribeQuickActions } from '@/lib/platform/quickActions';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { useEffect } from 'react';
@@ -81,8 +86,13 @@ async function handleNotificationResponse(
 
   // Default tap — navigate into the app
   const screen = typeof data?.screen === 'string' ? data.screen : null;
+  const routineId = typeof data?.routineId === 'string' ? data.routineId : null;
   if (screen === '/summary') {
     router.push('/summary' as never);
+  } else if (screen === '/weekly-review') {
+    router.push('/weekly-review' as never);
+  } else if (screen === '/routine' && routineId) {
+    router.push({ pathname: '/routine/[id]', params: { id: routineId } } as never);
   } else if (screen === '/habit' && habitId) {
     router.push({ pathname: '/habit/[id]', params: { id: habitId } } as never);
   }
@@ -108,7 +118,15 @@ function AppNavigator() {
     if (last) handleNotificationResponse(last);
 
     const sub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
-    return () => sub.remove();
+
+    // App-shortcut quick actions (long-press app icon)
+    setupQuickActions().catch(() => null);
+    const unsubQA = subscribeQuickActions();
+
+    return () => {
+      sub.remove();
+      unsubQA();
+    };
   }, []);
 
   const { isDark } = useTheme();
@@ -124,7 +142,14 @@ function AppNavigator() {
         />
         <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="summary" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="weekly-review" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="insights" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="lock" options={{ animation: 'fade', gestureEnabled: false }} />
+        <Stack.Screen name="shop" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="year-in-review" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="habit/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="timer/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="journal/[date]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="about"      options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy"    options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="templates"   options={{ animation: 'slide_from_right' }} />
@@ -142,13 +167,21 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <HabitsProvider>
-          <RoutinesProvider>
-            <GamificationProvider>
-              <AppNavigator />
-            </GamificationProvider>
-          </RoutinesProvider>
-        </HabitsProvider>
+        <ToastProvider>
+          <AppLockProvider>
+            <HabitsProvider>
+              <RoutinesProvider>
+                <MoodProvider>
+                  <GamificationProvider>
+                    <AppNavigator />
+                    {/* Floating toast overlay — sits above all screens. */}
+                    <ToastOverlay />
+                  </GamificationProvider>
+                </MoodProvider>
+              </RoutinesProvider>
+            </HabitsProvider>
+          </AppLockProvider>
+        </ToastProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

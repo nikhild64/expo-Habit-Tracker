@@ -55,37 +55,41 @@ export default function RoutineDetailScreen() {
   const allDone    = totalCount > 0 && doneCount === totalCount;
   const pct        = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
-  // Toggle a single habit; auto-complete routine when all become done
+  // Toggle a single habit; auto-complete routine when all become done.
+  // `routine` is guaranteed non-null after the early-return guard above; we
+  // bind it locally so TS keeps narrowing inside this closure.
   async function handleHabitToggle(habitId: string) {
+    const r = routine!;
     const result = await markDone(habitId);
     if (!result.wasAdded) return;
     const allNowDone = routineHabits.every(h =>
       h.id === habitId ? true : isDoneToday(h),
     );
     if (allNowDone) {
-      await markRoutineCompleteForToday(routine.id);
+      await markRoutineCompleteForToday(r.id);
     }
   }
 
-  // Mark every undone habit done at once
   async function handleMarkAllDone() {
+    const r = routine!;
     for (const h of routineHabits) {
       if (!isDoneToday(h)) await markDone(h.id);
     }
-    await markRoutineCompleteForToday(routine.id);
+    await markRoutineCompleteForToday(r.id);
   }
 
   function confirmDelete() {
+    const r = routine!;
     Alert.alert(
       'Delete routine',
-      `Remove "${routine.name}"? Your streak data will be lost.`,
+      `Remove "${r.name}"? Your streak data will be lost.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await deleteRoutine(routine.id);
+            await deleteRoutine(r.id);
             router.back();
           },
         },

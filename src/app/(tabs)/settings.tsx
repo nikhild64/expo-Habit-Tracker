@@ -10,8 +10,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClockFace } from '@/components/ClockFace';
 import { useHabitsStore } from '@/contexts/HabitsContext';
 import { useColors, useTheme } from '@/contexts/ThemeContext';
+import { useToast } from '@/contexts/ToastContext';
+import { ACCENT_PRESETS } from '@/lib/ui/theme';
+import type { AccentId } from '@/lib/ui/theme';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
-import { exportToCSV, exportToJSON, pickHabitsJSON } from '@/lib/habits/export';
+import { applyFullBackup, exportFullBackup, exportToCSV, exportToJSON, pickFullBackup, pickHabitsJSON } from '@/lib/habits/export';
 import {
   DEFAULT_QUIET_HOURS,
   loadQuietHours,
@@ -47,9 +50,10 @@ function formatTime(h: number, m: number): string {
 
 export default function SettingsScreen() {
   const C = useColors();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme, accent, setAccent, unlockedAccents } = useTheme();
   const { token, permissionStatus, refresh } = usePushNotifications();
   const { habits, restoreHabit, deleteHabit, importHabits } = useHabitsStore();
+  const toast = useToast();
   const archivedHabits = habits.filter(h => h.status === 'archived');
   const [quietHours, setQuietHoursState] = useState<QuietHours>(DEFAULT_QUIET_HOURS);
   const [exactAlarmStatus, setExactAlarmStatus] = useState<'not-applicable' | 'granted' | 'revoked'>('not-applicable');
@@ -111,7 +115,7 @@ export default function SettingsScreen() {
   async function copyToken() {
     if (!token) return;
     await Clipboard.setStringAsync(token);
-    Alert.alert('Copied', 'Push token copied to clipboard.');
+    toast.success('Push token copied');
   }
 
   async function resetApp() {
@@ -138,7 +142,7 @@ export default function SettingsScreen() {
       await exportToCSV(habits);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Export failed. Please try again.';
-      Alert.alert('Export Failed', msg);
+      toast.error(msg);
     } finally {
       setDataLoading(null);
     }
@@ -150,7 +154,7 @@ export default function SettingsScreen() {
       await exportToJSON(habits);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Export failed. Please try again.';
-      Alert.alert('Export Failed', msg);
+      toast.error(msg);
     } finally {
       setDataLoading(null);
     }
@@ -164,7 +168,7 @@ export default function SettingsScreen() {
     } catch (e: unknown) {
       setDataLoading(null);
       const msg = e instanceof Error ? e.message : 'Could not read the file.';
-      Alert.alert('Import Failed', msg);
+      toast.error(msg);
       return;
     }
     setDataLoading(null);
@@ -187,13 +191,13 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               const result = await importHabits(picked);
-              Alert.alert(
-                'Import Complete',
-                `Added ${result.added} habit${result.added !== 1 ? 's' : ''}${result.skipped > 0 ? `, skipped ${result.skipped} duplicate${result.skipped !== 1 ? 's' : ''}` : ''}.`,
+              toast.success(
+                `Added ${result.added} habit${result.added !== 1 ? 's' : ''}` +
+                (result.skipped > 0 ? `, skipped ${result.skipped} duplicate${result.skipped !== 1 ? 's' : ''}` : ''),
               );
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : 'Import failed. Please try again.';
-              Alert.alert('Import Failed', msg);
+              toast.error(msg);
             }
           },
         },
@@ -218,7 +222,7 @@ export default function SettingsScreen() {
         {/* ── Appearance ── */}
         <SectionLabel label="Appearance" C={C} />
         <View style={s.card}>
-          <View style={s.row}>
+          <View style={[s.row, s.rowBorder]}>
             <View style={[s.rowIcon, { backgroundColor: isDark ? '#6366F126' : '#F4F4F5' }]}>
               <Ionicons name={isDark ? 'moon' : 'sunny'} size={16} color={isDark ? C.tint : '#CA8A04'} />
             </View>
@@ -230,6 +234,105 @@ export default function SettingsScreen() {
               thumbColor="#fff"
             />
           </View>
+
+          {/* Accent picker */}
+          <View style={s.row}>
+            <View style={[s.rowIcon, { backgroundColor: C.tintLight }]}>
+              <Ionicons name="color-palette-outline" size={16} color={C.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Accent Color</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingRight: 6 }}
+              >
+                {ACCENT_PRESETS.map(preset => {
+                  const isActive = preset.id === accent;
+                  const isLocked = !unlockedAccents.includes(preset.id);
+                  return (
+                    <TouchableOpacity
+                      key={preset.id}
+                      onPress={() => {
+                        if (isLocked) {
+                          Alert.alert(
+                            `${preset.label} accent`,
+                            'Unlock this accent in the Cosmetics Shop with coins earned from completing habits.',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Visit Shop', onPress: () => router.push('/shop' as never) },
+                            ],
+                          );
+                          return;
+                        }
+                        setAccent(preset.id as AccentId);
+                      }}
+                      activeOpacity={0.85}
+                      style={{ alignItems: 'center', gap: 4 }}
+                    >
+                      <View
+                        style={{
+                          width: 34, height: 34, borderRadius: 17,
+                          backgroundColor: preset.tint,
+                          alignItems: 'center', justifyContent: 'center',
+                          opacity: isLocked ? 0.45 : 1,
+                          borderWidth: isActive ? 3 : 0,
+                          borderColor: C.text,
+                        }}
+                      >
+                        {isLocked && <Ionicons name="lock-closed" size={14} color="#fff" />}
+                        {isActive && !isLocked && <Ionicons name="checkmark" size={16} color="#fff" />}
+                      </View>
+                      <Text style={{ fontSize: 9, fontWeight: '600', color: C.textMuted }}>{preset.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Insights & Reviews ── */}
+        <SectionLabel label="Insights & Reviews" C={C} />
+        <View style={s.card}>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={() => router.push('/insights' as never)} activeOpacity={0.7}>
+            <View style={[s.rowIcon, { backgroundColor: '#8B5CF622' }]}>
+              <Ionicons name="analytics-outline" size={16} color="#8B5CF6" />
+            </View>
+            <Text style={s.rowLabel}>Habit Insights</Text>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={() => router.push('/weekly-review' as never)} activeOpacity={0.7}>
+            <View style={[s.rowIcon, { backgroundColor: '#3B82F622' }]}>
+              <Ionicons name="calendar-outline" size={16} color="#3B82F6" />
+            </View>
+            <Text style={s.rowLabel}>Weekly Review</Text>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.row} onPress={() => router.push('/year-in-review' as never)} activeOpacity={0.7}>
+            <View style={[s.rowIcon, { backgroundColor: '#F59E0B22' }]}>
+              <Ionicons name="trophy-outline" size={16} color="#F59E0B" />
+            </View>
+            <Text style={s.rowLabel}>Year in Review</Text>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Privacy & Lock ── */}
+        <SectionLabel label="Privacy" C={C} />
+        <View style={s.card}>
+          <TouchableOpacity style={s.row} onPress={() => router.push('/lock?setup=1' as never)} activeOpacity={0.7}>
+            <View style={[s.rowIcon, { backgroundColor: '#EF444422' }]}>
+              <Ionicons name="lock-closed-outline" size={16} color="#EF4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>App Lock</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Protect with PIN + biometric
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
         </View>
 
         {/* ── Notifications ── */}
@@ -548,7 +651,7 @@ export default function SettingsScreen() {
 
           {/* Import from JSON */}
           <TouchableOpacity
-            style={s.row}
+            style={[s.row, s.rowBorder]}
             onPress={handleImportJSON}
             activeOpacity={0.7}
             disabled={dataLoading !== null}
@@ -560,9 +663,82 @@ export default function SettingsScreen() {
               }
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.rowLabel}>Import from JSON</Text>
+              <Text style={s.rowLabel}>Import Habits (JSON)</Text>
               <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
                 Restore habits from a previous backup
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+
+          {/* Full backup export */}
+          <TouchableOpacity
+            style={[s.row, s.rowBorder]}
+            onPress={async () => {
+              try {
+                await exportFullBackup();
+                toast.success('Backup exported');
+              } catch (e: unknown) {
+                toast.error(`Backup failed: ${e instanceof Error ? e.message : 'Try again.'}`);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[s.rowIcon, { backgroundColor: '#EC489922' }]}>
+              <Ionicons name="cloud-download-outline" size={16} color="#EC4899" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Full Backup</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Habits + routines + profile + mood + theme
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+          </TouchableOpacity>
+
+          {/* Full backup restore */}
+          <TouchableOpacity
+            style={s.row}
+            onPress={async () => {
+              try {
+                const backup = await pickFullBackup();
+                if (!backup) return;
+                Alert.alert(
+                  'Restore from Backup?',
+                  'This will OVERWRITE your current habits, routines, profile, mood, and theme. Are you sure?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Restore',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          const { restored } = await applyFullBackup(backup);
+                          Alert.alert(
+                            'Restore Complete',
+                            `Restored: ${restored.join(', ')}.\n\nThe app will reload.`,
+                            [{ text: 'OK', onPress: () => DevSettings.reload() }],
+                          );
+                        } catch (e) {
+                          toast.error(`Restore failed: ${e instanceof Error ? e.message : 'Try again.'}`);
+                        }
+                      },
+                    },
+                  ],
+                );
+              } catch (e) {
+                toast.error(`Could not open backup: ${e instanceof Error ? e.message : 'Try again.'}`);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[s.rowIcon, { backgroundColor: '#14B8A622' }]}>
+              <Ionicons name="cloud-upload-outline" size={16} color="#14B8A6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Restore Full Backup</Text>
+              <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 1 }}>
+                Replace everything from a backup file
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
@@ -638,7 +814,7 @@ export default function SettingsScreen() {
 function createStyles(C: ReturnType<typeof useColors>) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: C.bg },
-    content: { padding: 20, paddingTop: 8, gap: 8, paddingBottom: 48 },
+    content: { padding: 20, paddingTop: 8, gap: 8, paddingBottom: 110 },
     heading: { fontSize: 30, fontWeight: '700', color: C.text, letterSpacing: -0.5, marginBottom: 12, paddingTop: 8 },
 
     card: {

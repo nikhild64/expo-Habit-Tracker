@@ -31,6 +31,12 @@ function isoWeekMonday(d: Date): string {
 /**
  * Frequency-aware "done today" check.
  *
+ * Also habit-type aware:
+ *  - binary: today is in completions (when scheduled)
+ *  - quantitative: progress[today] >= target.value
+ *  - timed: sessionSeconds[today] >= target.timerSeconds
+ *  - negative: not slipped today (true unless today is in slipDates)
+ *
  * - daily / weekly:  true iff today's date is in completions (or today is not a
  *                    scheduled weekday for `weekly`)
  * - weekdays:        true iff today is Sat/Sun **or** today is in completions
@@ -39,11 +45,32 @@ function isoWeekMonday(d: Date): string {
  * - interval(D):     true iff there is ≥1 completion within the last D days
  */
 export function isDoneToday(habit: Habit): boolean {
-  const completions = habit.completions ?? [];
   const f   = habit.frequency;
   const now = new Date();
   const key = toDateKey(now);
   const dow = now.getDay(); // 0=Sun … 6=Sat
+
+  // Negative habits — "done" simply means "did not slip today"
+  if (habit.habitType === 'negative') {
+    return !(habit.slipDates ?? []).includes(key);
+  }
+
+  // Quantitative habits — check accumulated value against target
+  if (habit.habitType === 'quantitative') {
+    const accumulated = (habit.progress ?? {})[key] ?? 0;
+    const target = habit.target?.value ?? 1;
+    if (accumulated < target) return false;
+    // fall through to also confirm "today is in completions" — kept in sync by the store
+  }
+
+  // Timed habits — check accumulated session seconds against target
+  if (habit.habitType === 'timed') {
+    const accumulated = (habit.sessionSeconds ?? {})[key] ?? 0;
+    const target = habit.target?.timerSeconds ?? 60;
+    if (accumulated < target) return false;
+  }
+
+  const completions = habit.completions ?? [];
 
   switch (f.kind) {
     case 'daily':
@@ -78,6 +105,61 @@ export function isDoneToday(habit: Habit): boolean {
     default:
       return completions.includes(key);
   }
+}
+
+/**
+ * Returns today's progress for quantitative habits as a 0–1 ratio.
+ * Returns 0 for non-quantitative habits.
+ */
+export function quantProgressToday(habit: Habit): number {
+  if (habit.habitType !== 'quantitative') return 0;
+  const key = toDateKey(new Date());
+  const accumulated = (habit.progress ?? {})[key] ?? 0;
+  const target = habit.target?.value ?? 1;
+  return Math.min(1, accumulated / target);
+}
+
+/**
+ * Returns today's timer progress for timed habits as a 0–1 ratio.
+ */
+export function timedProgressToday(habit: Habit): number {
+  if (habit.habitType !== 'timed') return 0;
+  const key = toDateKey(new Date());
+  const accumulated = (habit.sessionSeconds ?? {})[key] ?? 0;
+  const target = habit.target?.timerSeconds ?? 60;
+  return Math.min(1, accumulated / target);
+}
+
+/**
+ * Loop-style "habit strength" score (0–100).
+ *
+ * Exponential moving average over a 30-day window where recent completions
+ * weigh more than old ones. Forgiving alternative to brittle streaks.
+ * Negative habits invert: slips reduce strength.
+ */
+export function computeStrengthScore(habit: Habit, windowDays = 30): number {
+  const isNegative = habit.habitType === 'negative';
+  const events = new Set(isNegative ? (habit.slipDates ?? []) : (habit.completions ?? []));
+  if (events.size === 0) return isNegative ? 100 : 0;
+
+  const now = new Date();
+  const alpha = 0.1; // decay factor — higher = more weight on recent days
+  let score = isNegative ? 100 : 0;
+
+  for (let d = windowDays - 1; d >= 0; d--) {
+    const dt = new Date(now);
+    dt.setDate(now.getDate() - d);
+    const key = toDateKey(dt);
+    const hit = events.has(key);
+    if (isNegative) {
+      // slip = drop, clean day = recover
+      score = score + alpha * ((hit ? 0 : 100) - score);
+    } else {
+      // completed = full credit, missed = zero
+      score = score + alpha * ((hit ? 100 : 0) - score);
+    }
+  }
+  return Math.round(score);
 }
 
 // ── Standard consecutive-day streak ──────────────────────────────────────────

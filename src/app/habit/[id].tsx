@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useGamification } from '@/contexts/GamificationContext';
 import { isDoneToday, useHabitsStore } from '@/contexts/HabitsContext';
@@ -178,6 +178,8 @@ export default function HabitDetailScreen() {
   const C = useColors();
   const styles = useMemo(() => createStyles(C), [C]);
   const cal = useMemo(() => createCalStyles(C), [C]);
+  const insets = useSafeAreaInsets();
+  const sheetBottomPad = Math.max(insets.bottom + 12, 24);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { habits, markDone, updateHabit, deleteHabit, pauseHabit, archiveHabit, restoreHabit, addNote } = useHabitsStore();
   const { awardXP } = useGamification();
@@ -572,18 +574,27 @@ export default function HabitDetailScreen() {
       </ScrollView>
 
       {/* ── Note edit modal ─────────────────────────────────────────────────── */}
+      {/*
+        Note-edit sheet — see Today tab for the same keyboard fix rationale:
+        Android <Modal> + KeyboardAvoidingView requires `statusBarTranslucent`
+        on the Modal and KAV must wrap the full overlay with flex:1.
+      */}
       <Modal
         visible={noteEdit !== null}
         transparent
         animationType="slide"
+        statusBarTranslucent
         onRequestClose={() => setNoteEdit(null)}
       >
-        <View style={styles.noteOverlay}>
-          {/* Backdrop — tap to dismiss */}
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setNoteEdit(null)} />
-          {/* Sheet sits below the backdrop; KAV pushes it above the keyboard */}
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.noteSheet, { backgroundColor: C.surface }]}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior="padding"
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.noteOverlay}>
+            {/* Backdrop — tap to dismiss */}
+            <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setNoteEdit(null)} />
+            <View style={[styles.noteSheet, { backgroundColor: C.surface, paddingBottom: sheetBottomPad }]}>
               <View style={[styles.noteDragHandle, { backgroundColor: C.border }]} />
               <View style={styles.noteSheetHeader}>
                 <Ionicons name="journal-outline" size={20} color={C.tint} />
@@ -622,8 +633,8 @@ export default function HabitDetailScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -775,7 +786,9 @@ function createStyles(C: Colors) { return StyleSheet.create({
   noteOverlay: { flex: 1, backgroundColor: '#00000060' },
   noteSheet: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingTop: 12, paddingHorizontal: 24, paddingBottom: 40,
+    paddingTop: 12, paddingHorizontal: 24,
+    // paddingBottom set inline via useSafeAreaInsets so the Save button
+    // never sits under the home indicator / gesture bar.
   },
   noteDragHandle: {
     width: 36, height: 4, borderRadius: 2,

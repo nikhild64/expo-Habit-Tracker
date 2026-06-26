@@ -1,12 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useGamification } from '@/contexts/GamificationContext';
 import { useHabitsStore } from '@/contexts/HabitsContext';
+import { useMood } from '@/contexts/MoodContext';
 import { useColors } from '@/contexts/ThemeContext';
 import { LEVELS } from '@/lib/gamification/rules';
+import { MOOD_EMOJI } from '@/lib/mood/storage';
+import { toDateKey } from '@/lib/habits/streak';
 import type { Colors } from '@/lib/ui/theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,14 +36,34 @@ function StatCard({ label, value, icon, color, C }: {
 export default function ProfileScreen() {
   const C = useColors();
   const s = useMemo(() => createStyles(C), [C]);
-  const { profile, levelInfo, loading } = useGamification();
-  const { habits } = useHabitsStore();
+  const { profile, levelInfo, loading, refreshQuests } = useGamification();
+  const { habits, loadFresh } = useHabitsStore();
+  const { today: moodToday } = useMood();
+  const [refreshing, setRefreshing] = useState(false);
+  const [achievementsExpanded, setAchievementsExpanded] = useState(false);
 
   const activeHabits  = useMemo(() => habits.filter(h => (h.status ?? 'active') === 'active'), [habits]);
   const unlockedCount = useMemo(
     () => (profile?.achievements ?? []).filter(a => a.unlockedAt !== null).length,
     [profile],
   );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.selectionAsync().catch(() => null);
+    try {
+      await loadFresh();
+      await refreshQuests(habits);
+    } finally {
+      setRefreshing(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
+    }
+  }, [loadFresh, refreshQuests, habits]);
+
+  // Re-evaluate today's quests when habits change so card stays fresh
+  useEffect(() => {
+    if (!loading) refreshQuests(habits).catch(() => null);
+  }, [habits, loading, refreshQuests]);
 
   if (loading || !profile || !levelInfo) {
     return (
@@ -62,8 +87,90 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={C.tint}
+            colors={[C.tint]}
+          />
+        }
       >
-        <Text style={s.heading}>Profile</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={s.heading}>Profile</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/shop' as never)}
+            style={[s.coinPill, { backgroundColor: '#F59E0B22' }]}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="cash" size={14} color="#F59E0B" />
+            <Text style={s.coinText}>{profile.coins ?? 0}</Text>
+            <Ionicons name="chevron-forward" size={12} color="#F59E0B" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Quick actions ── */}
+        <View style={s.actionRow}>
+          <TouchableOpacity
+            style={[s.actionBtn, { backgroundColor: C.surface, borderColor: C.border }]}
+            onPress={() => router.push('/insights' as never)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="analytics-outline" size={18} color="#8B5CF6" />
+            <Text style={[s.actionLabel, { color: C.text }]}>Insights</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.actionBtn, { backgroundColor: C.surface, borderColor: C.border }]}
+            onPress={() => router.push({ pathname: '/journal/[date]', params: { date: toDateKey(new Date()) } } as never)}
+            activeOpacity={0.85}
+          >
+            {moodToday?.morningMood || moodToday?.eveningMood
+              ? <Text style={{ fontSize: 18 }}>{MOOD_EMOJI[moodToday.eveningMood ?? moodToday.morningMood ?? 3]}</Text>
+              : <Ionicons name="journal-outline" size={18} color="#10B981" />
+            }
+            <Text style={[s.actionLabel, { color: C.text }]}>Journal</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.actionBtn, { backgroundColor: C.surface, borderColor: C.border }]}
+            onPress={() => router.push('/year-in-review' as never)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="trophy-outline" size={18} color="#F59E0B" />
+            <Text style={[s.actionLabel, { color: C.text }]}>Year</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Daily Quests ── */}
+        {profile.dailyQuests && profile.dailyQuests.length > 0 && (
+          <>
+            <Text style={[s.sectionLabel, { color: C.textMuted }]}>Daily Quests</Text>
+            <View style={[s.questsCard, { backgroundColor: C.surface, borderColor: C.border }]}>
+              {profile.dailyQuests.map((q, i) => (
+                <View key={q.id} style={[s.questRow, i > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}>
+                  <View style={[s.questIcon, { backgroundColor: q.completed ? C.done + '22' : C.surfaceAlt }]}>
+                    <Ionicons name={q.icon as never} size={18} color={q.completed ? C.done : C.textMuted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.questTitle, { color: q.completed ? C.textMuted : C.text, textDecorationLine: q.completed ? 'line-through' : 'none' }]}>
+                      {q.title}
+                    </Text>
+                    <Text style={[s.questDesc, { color: C.textMuted }]}>{q.description}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                    <View style={[s.rewardPill, { backgroundColor: q.completed ? C.done + '22' : '#F59E0B22' }]}>
+                      <Ionicons name="cash" size={10} color={q.completed ? C.done : '#F59E0B'} />
+                      <Text style={[s.rewardText, { color: q.completed ? C.done : '#F59E0B' }]}>+{q.coinReward}</Text>
+                    </View>
+                    <View style={[s.rewardPill, { backgroundColor: q.completed ? C.done + '22' : C.surfaceAlt }]}>
+                      <Ionicons name="star" size={10} color={q.completed ? C.done : C.textMuted} />
+                      <Text style={[s.rewardText, { color: q.completed ? C.done : C.textMuted }]}>+{q.xpReward}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* ── Level hero card ─────────────────────────────────────────────── */}
         <View style={[s.heroCard, { backgroundColor: C.surface, borderColor: C.border }]}>
@@ -162,9 +269,16 @@ export default function ProfileScreen() {
 
         {/* ── Achievements ────────────────────────────────────────────────── */}
         <Text style={[s.sectionLabel, { color: C.textMuted }]}>Achievements</Text>
-        <View style={s.achGrid}>
-          {profile.achievements.map(ach => {
-            const unlocked = ach.unlockedAt !== null;
+        {(() => {
+          const lockedCount = profile.achievements.length - unlockedCount;
+          const visible = achievementsExpanded
+            ? profile.achievements
+            : profile.achievements.filter(a => a.unlockedAt !== null);
+          return (
+            <>
+              <View style={s.achGrid}>
+                {visible.map(ach => {
+                  const unlocked = ach.unlockedAt !== null;
             return (
               <View
                 key={ach.id}
@@ -206,7 +320,30 @@ export default function ProfileScreen() {
               </View>
             );
           })}
-        </View>
+              </View>
+              {lockedCount > 0 && (
+                <TouchableOpacity
+                  onPress={() => setAchievementsExpanded(v => !v)}
+                  style={[s.expandBtn, { backgroundColor: C.surfaceAlt, borderColor: C.border }]}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={achievementsExpanded ? 'Hide locked achievements' : `Show ${lockedCount} locked achievements`}
+                >
+                  <Ionicons
+                    name={achievementsExpanded ? 'chevron-up' : 'lock-closed-outline'}
+                    size={14}
+                    color={C.textSecondary}
+                  />
+                  <Text style={[s.expandLabel, { color: C.textSecondary }]}>
+                    {achievementsExpanded
+                      ? `Hide ${lockedCount} locked`
+                      : `${lockedCount} locked · tap to view`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          );
+        })()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -218,7 +355,7 @@ function createStyles(C: Colors) {
   return StyleSheet.create({
     root:        { flex: 1, backgroundColor: C.bg },
     loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    content:     { padding: 20, paddingTop: 8, paddingBottom: 40, gap: 12 },
+    content:     { padding: 20, paddingTop: 8, paddingBottom: 110, gap: 12 },
     heading:     { fontSize: 30, fontWeight: '700', color: C.text, letterSpacing: -0.5, marginBottom: 4, paddingTop: 8 },
     sectionLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
 
@@ -276,6 +413,25 @@ function createStyles(C: Colors) {
     achFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
     xpPill:  { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
     xpPillText: { fontSize: 10, fontWeight: '700' },
+
+    coinPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
+    coinText: { fontSize: 14, fontWeight: '800', color: '#F59E0B' },
+    actionRow: { flexDirection: 'row', gap: 8 },
+    actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1, paddingVertical: 12 },
+    actionLabel: { fontSize: 13, fontWeight: '700' },
+    questsCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+    questRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+    questIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    questTitle: { fontSize: 14, fontWeight: '700' },
+    questDesc:  { fontSize: 11, marginTop: 1 },
+    rewardPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+    rewardText: { fontSize: 10, fontWeight: '700' },
+
+    expandBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      borderRadius: 12, borderWidth: 1, paddingVertical: 12, marginTop: 4,
+    },
+    expandLabel: { fontSize: 13, fontWeight: '600' },
   });
 }
 

@@ -4,9 +4,16 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { loadHabits, saveHabits } from '@/lib/habits/storage';
-import { computeFrequencyAwareStreak, computeStreak, isDoneToday, toDateKey } from '@/lib/habits/streak';
+import {
+  computeFrequencyAwareStreak,
+  computeStreak,
+  computeStrengthScore,
+  isDoneToday,
+  toDateKey,
+} from '@/lib/habits/streak';
 import type { Habit } from '@/lib/habits/types';
 import { cancelHabitReminders, scheduleHabitReminders } from '@/lib/notifications/schedule';
+import { refreshTodayWidget } from '@/lib/platform/widget';
 
 function randomUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -37,6 +44,16 @@ type HabitsContextValue = {
   updateHabit:    (id: string, updates: Partial<Omit<Habit, 'id' | 'notificationIds'>>) => Promise<void>;
   deleteHabit:    (id: string) => Promise<void>;
   markDone:       (id: string) => Promise<MarkDoneResult>;
+  /** Quantitative habits: add `delta` to today's progress. Auto-completes when target hit. */
+  incrementProgress: (id: string, delta: number) => Promise<MarkDoneResult>;
+  /** Timed habits: add `seconds` to today's session total. */
+  addTimerSeconds:   (id: string, seconds: number) => Promise<MarkDoneResult>;
+  /** Negative habits: record a slip today (resets the days-clean counter). */
+  markSlip:          (id: string) => Promise<void>;
+  /** Sub-tasks: toggle one subtask done for a given habit + date. */
+  toggleSubtask:     (id: string, subtaskId: string, dateKey?: string) => Promise<MarkDoneResult>;
+  /** Skip days: mark/unmark a planned day off (neutral — doesn't break streak). */
+  toggleSkipDay:     (id: string, dateKey: string) => Promise<void>;
   reorderHabits:  (orderedIds: string[]) => Promise<void>;
   togglePin:      (id: string) => Promise<void>;
   pauseHabit:     (id: string) => Promise<void>;
@@ -48,13 +65,20 @@ type HabitsContextValue = {
   importHabits:   (incoming: Habit[]) => Promise<{ added: number; skipped: number }>;
 };
 
+const noopResult: MarkDoneResult = { wasAdded: false, newStreak: 0 };
+
 const HabitsContext = createContext<HabitsContextValue>({
   habits:        [],
   loading:       true,
   addHabit:      async () => { throw new Error('HabitsProvider not mounted'); },
   updateHabit:   async () => {},
   deleteHabit:   async () => {},
-  markDone:      async () => ({ wasAdded: false, newStreak: 0 }),
+  markDone:      async () => noopResult,
+  incrementProgress: async () => noopResult,
+  addTimerSeconds:   async () => noopResult,
+  markSlip:          async () => {},
+  toggleSubtask:     async () => noopResult,
+  toggleSkipDay:     async () => {},
   reorderHabits: async () => {},
   togglePin:     async () => {},
   pauseHabit:    async () => {},
@@ -79,39 +103,25 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     // Badge counts only undone *active* habits
     const pending = next.filter(h => (h.status ?? 'active') === 'active' && !isDoneToday(h)).length;
     Notifications.setBadgeCountAsync(pending).catch(() => null);
+    // Refresh Android home-screen widget (no-op on iOS / web)
+    refreshTodayWidget().catch(() => null);
   }
 
-  /**
-   * Recomputes streak for every habit and auto-applies streak freezes.
-   *
-   * Freeze rules:
-   * - Only active habits are eligible (paused/archived are never decayed)
-   * - For daily/weekly/weekdays/weekends: a freeze fires when yesterday was a
-   *   scheduled day that the user missed, the day before IS in effective
-   *   completions, and a freeze token is available
-   * - xperweek/interval habits use flexible streaks and are NOT subject to
-   *   per-day freeze logic
-   */
   function applyStreakCorrection(raw: Habit[]): Habit[] {
     const yesterday  = toDateKey(new Date(Date.now() - 86_400_000));
     const dayBefore  = toDateKey(new Date(Date.now() - 172_800_000));
 
     return raw.map(h => {
-      // Paused/archived habits: no decay, no freeze, no streak change
       if ((h.status ?? 'active') !== 'active') return h;
 
       const completions      = h.completions    ?? [];
       let freezeUsedDates    = h.freezeUsedDates ?? [];
       let freezesAvailable   = h.freezesAvailable ?? 1;
-
-      // Merge completions + existing freeze dates for streak computation
       let effective = [...new Set([...completions, ...freezeUsedDates])];
 
-      // Per-day freeze only makes sense for fixed-schedule frequency kinds
       const isFlexFreq =
         h.frequency.kind === 'xperweek' || h.frequency.kind === 'interval';
 
-      // Check whether yesterday was a scheduled day for this habit
       const yesterdayDOW = new Date(yesterday + 'T00:00:00').getDay();
       const yesterdayWasScheduled = (() => {
         switch (h.frequency.kind) {
@@ -119,14 +129,17 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
           case 'weekly':   return h.frequency.weekdays.includes(yesterdayDOW + 1);
           case 'weekdays': return yesterdayDOW >= 1 && yesterdayDOW <= 5;
           case 'weekends': return yesterdayDOW === 0 || yesterdayDOW === 6;
-          default:         return false; // flex types handled above
+          default:         return false;
         }
       })();
 
-      // Auto-apply a freeze if the user missed exactly a scheduled yesterday
+      // Skip days are neutral — never trigger a freeze.
+      const wasSkipped = (h.skipDays ?? []).includes(yesterday);
+
       if (
         !isFlexFreq                            &&
         yesterdayWasScheduled                  &&
+        !wasSkipped                            &&
         !effective.includes(yesterday)         &&
         effective.includes(dayBefore)          &&
         freezesAvailable > 0                   &&
@@ -138,11 +151,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       }
 
       const { streak, bestStreak } = computeFrequencyAwareStreak(effective, h.frequency);
+      const strengthScore = computeStrengthScore(h);
 
       return {
         ...h,
         streak,
         bestStreak,
+        strengthScore,
         freezesAvailable,
         freezeUsedDates,
       };
@@ -187,6 +202,14 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       pausedAt:             null,
       freezesAvailable:     1,
       freezeUsedDates:      [],
+      habitType:            draft.habitType ?? 'binary',
+      timeOfDay:            draft.timeOfDay ?? 'anytime',
+      skipDays:             draft.skipDays ?? [],
+      reminders:            draft.reminders,
+      progress:             {},
+      sessionSeconds:       {},
+      subtaskCompletions:   {},
+      slipDates:            [],
     };
     const ids = await scheduleHabitReminders(newHabit);
     newHabit.notificationIds = ids;
@@ -213,34 +236,38 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
     commit(habitsRef.current.filter(h => h.id !== id));
   }
 
-  async function markDone(id: string): Promise<MarkDoneResult> {
-    const habit = habitsRef.current.find(h => h.id === id);
-    if (!habit) return { wasAdded: false, newStreak: 0 };
+  // ── Shared completion mutator ─────────────────────────────────────────────
 
-    const key                   = toDateKey(new Date());
-    const completions           = habit.completions           ?? [];
-    const freezeUsedDates       = habit.freezeUsedDates       ?? [];
-    const completionTimestamps  = { ...(habit.completionTimestamps ?? {}) };
+  function toggleCompletionEntry(
+    habit: Habit,
+    key: string,
+    add: boolean,
+  ): { habit: Habit; result: MarkDoneResult } {
+    const completions          = habit.completions           ?? [];
+    const freezeUsedDates      = habit.freezeUsedDates       ?? [];
+    const completionTimestamps = { ...(habit.completionTimestamps ?? {}) };
 
-    const wasAdded       = !completions.includes(key);
+    const wasAdded = add && !completions.includes(key);
+    const wasRemoved = !add && completions.includes(key);
+    if (!wasAdded && !wasRemoved) {
+      return { habit, result: { wasAdded: false, newStreak: habit.streak } };
+    }
+
     const newCompletions = wasAdded
       ? [...completions, key]
       : completions.filter(d => d !== key);
 
-    // Record or remove the precise completion timestamp for smart-reminders
     if (wasAdded) {
       completionTimestamps[key] = new Date().toISOString();
     } else {
       delete completionTimestamps[key];
     }
 
-    // Include freeze dates when computing streak so freeze-protected days count
-    const effective          = [...new Set([...newCompletions, ...freezeUsedDates])];
+    const effective = [...new Set([...newCompletions, ...freezeUsedDates])];
     const { streak, bestStreak } = computeFrequencyAwareStreak(effective, habit.frequency);
 
-    // Award one freeze token every 7-day milestone (max 3) — only for fixed-schedule habits
-    const currentFreezes      = habit.freezesAvailable ?? 1;
-    const isFlexFreq          = habit.frequency.kind === 'xperweek' || habit.frequency.kind === 'interval';
+    const currentFreezes = habit.freezesAvailable ?? 1;
+    const isFlexFreq     = habit.frequency.kind === 'xperweek' || habit.frequency.kind === 'interval';
     const newFreezesAvailable = (!isFlexFreq && wasAdded && streak > 0 && streak % 7 === 0)
       ? Math.min(3, currentFreezes + 1)
       : currentFreezes;
@@ -250,34 +277,203 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       ? new Date(sorted[0] + 'T00:00:00').toISOString()
       : null;
 
-    // For interval habits: reschedule the one-shot notification so the next
-    // reminder fires `days` days from today's completion, not from creation time.
-    let notificationIds = habit.notificationIds;
-    if (wasAdded && habit.frequency.kind === 'interval') {
-      await cancelHabitReminders(habit.notificationIds);
-      notificationIds = await scheduleHabitReminders(
-        { ...habit, completions: newCompletions },
-      );
+    const updated: Habit = {
+      ...habit,
+      completions: newCompletions,
+      completionTimestamps,
+      streak,
+      bestStreak,
+      strengthScore: computeStrengthScore({ ...habit, completions: newCompletions }),
+      lastCompletedISO,
+      freezesAvailable: newFreezesAvailable,
+    };
+
+    return { habit: updated, result: { wasAdded, newStreak: streak } };
+  }
+
+  // ── Completion methods (per habit type) ───────────────────────────────────
+
+  async function markDone(id: string): Promise<MarkDoneResult> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit) return noopResult;
+
+    const key = toDateKey(new Date());
+
+    // Negative habit "mark done" doesn't change completions — see markSlip for inverse
+    if (habit.habitType === 'negative') {
+      // Tapping "I stayed clean today" — record a completion entry to track the streak
+      const { habit: updated, result } = toggleCompletionEntry(habit, key, true);
+      commit(habitsRef.current.map(h => h.id === id ? updated : h));
+      return result;
     }
 
-    commit(
-      habitsRef.current.map(h =>
-        h.id === id
-          ? {
-              ...h,
-              completions: newCompletions,
-              completionTimestamps,
-              streak,
-              bestStreak,
-              lastCompletedISO,
-              freezesAvailable: newFreezesAvailable,
-              notificationIds,
-            }
-          : h,
-      ),
-    );
+    const completions = habit.completions ?? [];
+    const wasAddingNow = !completions.includes(key);
+    const { habit: nextHabit, result } = toggleCompletionEntry(habit, key, wasAddingNow);
 
-    return { wasAdded, newStreak: streak };
+    // For quantitative habits, also satisfy the numeric target so day stays "done"
+    let finalHabit = nextHabit;
+    if (wasAddingNow && habit.habitType === 'quantitative') {
+      const progress = { ...(habit.progress ?? {}) };
+      progress[key] = habit.target?.value ?? 1;
+      finalHabit = { ...nextHabit, progress };
+    }
+    if (wasAddingNow && habit.habitType === 'timed') {
+      const sessionSeconds = { ...(habit.sessionSeconds ?? {}) };
+      sessionSeconds[key] = habit.target?.timerSeconds ?? 60;
+      finalHabit = { ...nextHabit, sessionSeconds };
+    }
+    // When unticking quantitative/timed, also clear today's accumulator
+    if (!wasAddingNow && habit.habitType === 'quantitative') {
+      const progress = { ...(habit.progress ?? {}) };
+      delete progress[key];
+      finalHabit = { ...nextHabit, progress };
+    }
+    if (!wasAddingNow && habit.habitType === 'timed') {
+      const sessionSeconds = { ...(habit.sessionSeconds ?? {}) };
+      delete sessionSeconds[key];
+      finalHabit = { ...nextHabit, sessionSeconds };
+    }
+
+    // For interval habits: reschedule the one-shot notification
+    let notificationIds = habit.notificationIds;
+    if (wasAddingNow && habit.frequency.kind === 'interval') {
+      await cancelHabitReminders(habit.notificationIds);
+      notificationIds = await scheduleHabitReminders({
+        ...finalHabit,
+      });
+      finalHabit = { ...finalHabit, notificationIds };
+    }
+
+    commit(habitsRef.current.map(h => h.id === id ? finalHabit : h));
+    return result;
+  }
+
+  async function incrementProgress(id: string, delta: number): Promise<MarkDoneResult> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit || habit.habitType !== 'quantitative') return noopResult;
+
+    const key = toDateKey(new Date());
+    const prev = (habit.progress ?? {})[key] ?? 0;
+    const next = Math.max(0, prev + delta);
+    const target = habit.target?.value ?? 1;
+
+    const newProgress = { ...(habit.progress ?? {}), [key]: next };
+    if (next === 0) delete newProgress[key];
+
+    const wasDoneBefore  = prev >= target;
+    const isDoneNow      = next >= target;
+
+    let updated: Habit = { ...habit, progress: newProgress };
+    let result: MarkDoneResult = { wasAdded: false, newStreak: habit.streak };
+
+    if (isDoneNow && !wasDoneBefore) {
+      const { habit: withCompletion, result: r } = toggleCompletionEntry(updated, key, true);
+      updated = withCompletion;
+      result  = r;
+    } else if (!isDoneNow && wasDoneBefore) {
+      const { habit: withoutCompletion, result: r } = toggleCompletionEntry(updated, key, false);
+      updated = withoutCompletion;
+      result  = r;
+    }
+
+    commit(habitsRef.current.map(h => h.id === id ? updated : h));
+    return result;
+  }
+
+  async function addTimerSeconds(id: string, seconds: number): Promise<MarkDoneResult> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit || habit.habitType !== 'timed') return noopResult;
+
+    const key = toDateKey(new Date());
+    const prev = (habit.sessionSeconds ?? {})[key] ?? 0;
+    const next = Math.max(0, prev + seconds);
+    const target = habit.target?.timerSeconds ?? 60;
+
+    const newSeconds = { ...(habit.sessionSeconds ?? {}), [key]: next };
+    if (next === 0) delete newSeconds[key];
+
+    const wasDoneBefore = prev >= target;
+    const isDoneNow     = next >= target;
+
+    let updated: Habit = { ...habit, sessionSeconds: newSeconds };
+    let result: MarkDoneResult = { wasAdded: false, newStreak: habit.streak };
+
+    if (isDoneNow && !wasDoneBefore) {
+      const { habit: withCompletion, result: r } = toggleCompletionEntry(updated, key, true);
+      updated = withCompletion;
+      result  = r;
+    }
+
+    commit(habitsRef.current.map(h => h.id === id ? updated : h));
+    return result;
+  }
+
+  async function markSlip(id: string): Promise<void> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit || habit.habitType !== 'negative') return;
+
+    const key = toDateKey(new Date());
+    const slipDates = habit.slipDates ?? [];
+    const newSlips = slipDates.includes(key) ? slipDates.filter(d => d !== key) : [...slipDates, key];
+
+    // Slipping today removes today from completions and resets streak
+    const completions = (habit.completions ?? []).filter(d => d !== key);
+    const { streak, bestStreak } = computeFrequencyAwareStreak(completions, habit.frequency);
+    const updated: Habit = {
+      ...habit,
+      slipDates: newSlips,
+      completions,
+      streak,
+      bestStreak,
+      strengthScore: computeStrengthScore({ ...habit, slipDates: newSlips }),
+    };
+    commit(habitsRef.current.map(h => h.id === id ? updated : h));
+  }
+
+  async function toggleSubtask(id: string, subtaskId: string, dateKey?: string): Promise<MarkDoneResult> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit) return noopResult;
+
+    const key = dateKey ?? toDateKey(new Date());
+    const todayDone = (habit.subtaskCompletions ?? {})[key] ?? [];
+    const isDone = todayDone.includes(subtaskId);
+    const newTodayDone = isDone ? todayDone.filter(s => s !== subtaskId) : [...todayDone, subtaskId];
+
+    const subtaskCompletions = { ...(habit.subtaskCompletions ?? {}) };
+    if (newTodayDone.length === 0) delete subtaskCompletions[key];
+    else subtaskCompletions[key] = newTodayDone;
+
+    let updated: Habit = { ...habit, subtaskCompletions };
+
+    // If all subtasks done today → mark habit done; if not → remove completion
+    const allSubtasks = habit.subtasks ?? [];
+    const allDone     = allSubtasks.length > 0 && allSubtasks.every(s => newTodayDone.includes(s.id));
+    const wasMarkedDone = (habit.completions ?? []).includes(key);
+
+    let result: MarkDoneResult = { wasAdded: false, newStreak: habit.streak };
+    if (allDone && !wasMarkedDone) {
+      const { habit: withCompletion, result: r } = toggleCompletionEntry(updated, key, true);
+      updated = withCompletion;
+      result  = r;
+    } else if (!allDone && wasMarkedDone) {
+      const { habit: withoutCompletion, result: r } = toggleCompletionEntry(updated, key, false);
+      updated = withoutCompletion;
+      result  = r;
+    }
+
+    commit(habitsRef.current.map(h => h.id === id ? updated : h));
+    return result;
+  }
+
+  async function toggleSkipDay(id: string, dateKey: string): Promise<void> {
+    const habit = habitsRef.current.find(h => h.id === id);
+    if (!habit) return;
+    const skipDays = habit.skipDays ?? [];
+    const newSkips = skipDays.includes(dateKey)
+      ? skipDays.filter(d => d !== dateKey)
+      : [...skipDays, dateKey];
+    commit(habitsRef.current.map(h => h.id === id ? { ...h, skipDays: newSkips } : h));
   }
 
   async function reorderHabits(orderedIds: string[]): Promise<void> {
@@ -345,7 +541,6 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
       .filter(h => !existingIds.has(h.id))
       .map((h, i) => ({
         ...h,
-        // Apply safe defaults for fields that may be absent in old exports
         completions:          Array.isArray(h.completions)     ? h.completions     : [],
         completionTimestamps: h.completionTimestamps           ?? {},
         notes:                h.notes                         ?? {},
@@ -353,7 +548,13 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
         freezeUsedDates:      Array.isArray(h.freezeUsedDates) ? h.freezeUsedDates : [],
         pinned:               h.pinned                        ?? false,
         category:             h.category                      ?? 'Other',
-        // Always reset these on the new device
+        habitType:            h.habitType                     ?? 'binary',
+        timeOfDay:            h.timeOfDay                     ?? 'anytime',
+        skipDays:             Array.isArray(h.skipDays)        ? h.skipDays         : [],
+        progress:             h.progress                      ?? {},
+        sessionSeconds:       h.sessionSeconds                ?? {},
+        subtaskCompletions:   h.subtaskCompletions            ?? {},
+        slipDates:            Array.isArray(h.slipDates)       ? h.slipDates        : [],
         notificationIds:      [],
         status:               'active' as const,
         pausedAt:             null,
@@ -374,7 +575,10 @@ export function HabitsProvider({ children }: { children: ReactNode }) {
   return (
     <HabitsContext.Provider
       value={{
-        habits, loading, addHabit, updateHabit, deleteHabit, markDone,
+        habits, loading,
+        addHabit, updateHabit, deleteHabit,
+        markDone, incrementProgress, addTimerSeconds, markSlip,
+        toggleSubtask, toggleSkipDay,
         reorderHabits, togglePin, pauseHabit, archiveHabit, restoreHabit,
         addNote, importHabits, loadFresh,
       }}
@@ -390,4 +594,9 @@ export function useHabitsStore() {
   return useContext(HabitsContext);
 }
 
+// Re-export the unchanged helper so existing imports keep working.
+// We don't re-export computeStreak (it's now an internal helper used by toggleCompletionEntry).
 export { isDoneToday } from '@/lib/habits/streak';
+
+// Suppress unused-import warning — computeStreak retained for potential future use
+void computeStreak;

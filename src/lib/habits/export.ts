@@ -1,8 +1,14 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import type { Habit } from './types';
+import { loadMoodEntries, saveMoodEntries } from '@/lib/mood/storage';
+import { loadRoutines, saveRoutines } from '@/lib/routines/storage';
+import { loadProfile, saveProfile } from '@/lib/gamification/storage';
+import { loadQuietHours, saveQuietHours } from '@/lib/habits/quiet-hours';
+import { loadHabits, saveHabits } from '@/lib/habits/storage';
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -128,3 +134,156 @@ export async function pickHabitsJSON(): Promise<Habit[] | null> {
 
   return valid;
 }
+
+// ── Full backup (v2) ─────────────────────────────────────────────────────────
+
+const BACKUP_SCHEMA_VERSION = 2;
+
+type FullBackup = {
+  schemaVersion: number;
+  exportedAt: string;
+  habits: Habit[];
+  routines?: unknown;
+  profile?: unknown;
+  moodEntries?: unknown;
+  quietHours?: unknown;
+  theme?: { theme?: string; accent?: string; unlockedAccents?: string[] };
+};
+
+const THEME_KEY = '@theme_v1';
+const ACCENT_KEY = '@accent_v1';
+const UNLOCKED_KEY = '@accents_unlocked_v1';
+
+/**
+ * Exports a single bundled JSON containing habits + routines + profile + mood
+ * + quiet-hours + theme prefs. Backwards-compatible: old single-array exports
+ * are still accepted by `pickHabitsJSON`.
+ */
+export async function exportFullBackup(): Promise<void> {
+  const [habits, routines, profile, moodEntries, quietHours, theme, accent, unlockedAccentsRaw] =
+    await Promise.all([
+      loadHabits(),
+      loadRoutines(),
+      loadProfile(),
+      loadMoodEntries(),
+      loadQuietHours(),
+      AsyncStorage.getItem(THEME_KEY),
+      AsyncStorage.getItem(ACCENT_KEY),
+      AsyncStorage.getItem(UNLOCKED_KEY),
+    ]);
+
+  const unlockedAccents = (() => {
+    if (!unlockedAccentsRaw) return undefined;
+    try { return JSON.parse(unlockedAccentsRaw) as string[]; } catch { return undefined; }
+  })();
+
+  const backup: FullBackup = {
+    schemaVersion: BACKUP_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    habits,
+    routines,
+    profile,
+    moodEntries,
+    quietHours,
+    theme: {
+      theme: theme ?? undefined,
+      accent: accent ?? undefined,
+      unlockedAccents,
+    },
+  };
+
+  const json = JSON.stringify(backup, null, 2);
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const file = new File(Paths.cache, `habitly-backup-${timestamp}.json`);
+  file.create({ overwrite: true });
+  file.write(json);
+
+  await Sharing.shareAsync(file.uri, {
+    mimeType: 'application/json',
+    dialogTitle: 'Habitly Full Backup',
+    UTI: 'public.json',
+  });
+}
+
+/**
+ * Imports a full backup file. Detects schema version and migrates accordingly.
+ * Returns counts so the caller can confirm with the user.
+ *
+ * Returns `null` if the user cancelled.
+ */
+export async function pickFullBackup(): Promise<FullBackup | null> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: 'application/json',
+    copyToCacheDirectory: true,
+  });
+  if (result.canceled || !result.assets?.[0]) return null;
+
+  const file = new File(result.assets[0].uri);
+  const content = file.textSync();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error('The selected file is not valid JSON.');
+  }
+
+  // Old-format files: bare habit array → wrap into a v1 backup shape
+  if (Array.isArray(parsed)) {
+    const habits = parsed as Habit[];
+    return { schemaVersion: 1, exportedAt: new Date().toISOString(), habits };
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Unrecognised backup format.');
+  }
+
+  const backup = parsed as FullBackup;
+  if (!Array.isArray(backup.habits)) {
+    throw new Error('Backup is missing the required "habits" array.');
+  }
+  return backup;
+}
+
+/**
+ * Applies a previously-picked backup to the device storage. This OVERWRITES
+ * existing data for the included sections — callers should confirm with the user.
+ */
+export async function applyFullBackup(backup: FullBackup): Promise<{ restored: string[] }> {
+  const restored: string[] = [];
+
+  if (Array.isArray(backup.habits)) {
+    await saveHabits(backup.habits);
+    restored.push(`${backup.habits.length} habits`);
+  }
+  if (backup.routines) {
+    // Best-effort — type compatibility is enforced on read
+    await saveRoutines(backup.routines as never);
+    restored.push('routines');
+  }
+  if (backup.profile) {
+    await saveProfile(backup.profile as never);
+    restored.push('profile (XP, coins, achievements)');
+  }
+  if (backup.moodEntries && typeof backup.moodEntries === 'object') {
+    await saveMoodEntries(backup.moodEntries as never);
+    restored.push('mood & journal');
+  }
+  if (backup.quietHours && typeof backup.quietHours === 'object') {
+    await saveQuietHours(backup.quietHours as never);
+    restored.push('quiet hours');
+  }
+  if (backup.theme) {
+    const { theme, accent, unlockedAccents } = backup.theme;
+    const items: Array<[string, string]> = [];
+    if (theme === 'dark' || theme === 'light') items.push([THEME_KEY, theme]);
+    if (typeof accent === 'string') items.push([ACCENT_KEY, accent]);
+    if (Array.isArray(unlockedAccents)) items.push([UNLOCKED_KEY, JSON.stringify(unlockedAccents)]);
+    if (items.length > 0) {
+      await AsyncStorage.multiSet(items);
+      restored.push('theme & accents');
+    }
+  }
+
+  return { restored };
+}
+

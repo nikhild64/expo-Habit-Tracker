@@ -67,6 +67,29 @@ function migrateHabit(h: Habit, index: number): Habit {
     out = { ...out, notes: {} };
   }
 
+  // v6 → v7: habit type, time-of-day, multi-reminders, skip days, quantitative/timed/subtask/negative fields
+  if (!out.habitType) {
+    out = { ...out, habitType: 'binary' };
+  }
+  if (!out.timeOfDay) {
+    out = { ...out, timeOfDay: 'anytime' };
+  }
+  if (!Array.isArray(out.skipDays)) {
+    out = { ...out, skipDays: [] };
+  }
+  if (!Array.isArray(out.reminders)) {
+    out = {
+      ...out,
+      reminders: [
+        {
+          id: 'r0',
+          hour: out.frequency?.hour ?? 9,
+          minute: out.frequency?.minute ?? 0,
+        },
+      ],
+    };
+  }
+
   return out;
 }
 

@@ -21,72 +21,105 @@ export type Colors = {
   tabBorder: string;
 };
 
-/** Brand orange */
+/** Brand orange (default accent) */
 export const BRAND = '#FF8B1F';
 
-export const dark: Colors = {
-  // Backgrounds — neutral dark (keeps habit colors vibrant)
+// ── Accent presets ───────────────────────────────────────────────────────────
+
+export type AccentId = 'orange' | 'indigo' | 'emerald' | 'rose' | 'slate' | 'violet' | 'teal' | 'amber';
+
+export type AccentPreset = {
+  id: AccentId;
+  label: string;
+  tint: string;
+  tintDark: string;
+  streak: string;
+  /** Whether this preset is free (unlocked by default) or shop-only. */
+  free: boolean;
+};
+
+export const ACCENT_PRESETS: AccentPreset[] = [
+  { id: 'orange',  label: 'Sunset',    tint: '#FF8B1F', tintDark: '#D96F0E', streak: '#FB923C', free: true  },
+  { id: 'indigo',  label: 'Indigo',    tint: '#6366F1', tintDark: '#4F46E5', streak: '#818CF8', free: true  },
+  { id: 'emerald', label: 'Emerald',   tint: '#10B981', tintDark: '#059669', streak: '#34D399', free: true  },
+  { id: 'rose',    label: 'Rose',      tint: '#F43F5E', tintDark: '#E11D48', streak: '#FB7185', free: false },
+  { id: 'slate',   label: 'Slate',     tint: '#64748B', tintDark: '#475569', streak: '#94A3B8', free: false },
+  { id: 'violet',  label: 'Violet',    tint: '#8B5CF6', tintDark: '#7C3AED', streak: '#A78BFA', free: false },
+  { id: 'teal',    label: 'Teal',      tint: '#14B8A6', tintDark: '#0D9488', streak: '#2DD4BF', free: false },
+  { id: 'amber',   label: 'Amber',     tint: '#F59E0B', tintDark: '#D97706', streak: '#FBBF24', free: false },
+];
+
+export function getAccentPreset(id: AccentId | string | null | undefined): AccentPreset {
+  return ACCENT_PRESETS.find(a => a.id === id) ?? ACCENT_PRESETS[0];
+}
+
+// ── Base palettes ────────────────────────────────────────────────────────────
+
+const baseDark: Omit<Colors, 'tint' | 'tintLight' | 'tintDark' | 'streak' | 'streakLight'> = {
   bg: '#0F0F14',
   surface: '#1B1B23',
   surfaceAlt: '#24242E',
   surfaceHover: '#2E2E3C',
 
-  // Text — lifted for accessibility (WCAG AA on #0F0F14 bg)
-  text: '#F4F4FE',           // contrast ~18:1 ✓
-  textSecondary: '#B4B4CC',  // contrast ~7:1 ✓
-  textMuted: '#8080A4',      // contrast ~4:1 ✓ (decorative)
+  text: '#F4F4FE',
+  textSecondary: '#B4B4CC',
+  textMuted: '#8080A4',
 
-  // Borders — more visible than before
   border: '#38384E',
   borderStrong: '#4C4C66',
 
-  // Brand — warm orange on dark feels premium
-  tint: BRAND,
-  tintLight: '#FF8B1F28',
-  tintDark: '#D96F0E',
-
-  // Semantic
-  done: '#34D399',           // emerald-400 — better on dark than green-500
+  done: '#34D399',
   doneLight: '#34D39922',
-  streak: '#FB923C',         // orange-400 — distinct from tint
-  streakLight: '#FB923C22',
-  danger: '#F87171',         // red-400 — visible on dark
+  danger: '#F87171',
   dangerLight: '#F8717122',
 
   tabBar: '#161620',
   tabBorder: '#38384E',
 };
 
-/** Warm cream / amber-tinted light theme */
-export const light: Colors = {
-  // Backgrounds — subtle amber warmth
+const baseLight: Omit<Colors, 'tint' | 'tintLight' | 'tintDark' | 'streak' | 'streakLight'> = {
   bg: '#FEFBF5',
   surface: '#FFFFFF',
   surfaceAlt: '#FFF4E6',
   surfaceHover: '#FFEAD0',
 
-  // Text
   text: '#1C1912',
   textSecondary: '#5C5345',
-  textMuted: '#9C8E7C',
+  // Darkened from #9C8E7C to pass WCAG 3:1 against surfaceAlt + surfaceHover.
+  // See scripts/contrast-audit.js — previous value failed at 2.94 / 2.73.
+  textMuted: '#8B7E6E',
 
-  // Borders — warm
   border: '#EAE0D0',
   borderStrong: '#D4C8B4',
 
-  // Brand
-  tint: BRAND,
-  tintLight: '#FFF4E6',
-  tintDark: '#D96F0E',
-
-  // Semantic
   done: '#16A34A',
   doneLight: '#F0FDF4',
-  streak: '#EA580C',
-  streakLight: '#FFF7ED',
   danger: '#DC2626',
   dangerLight: '#FEF2F2',
 
   tabBar: '#FEFBF5',
   tabBorder: '#EAE0D0',
 };
+
+/**
+ * Builds a full color palette for a given mode and accent.
+ *
+ * The base palette stays constant; only the accent-derived tokens
+ * (tint, tintLight, tintDark, streak, streakLight) change with the picker.
+ */
+export function buildColors(mode: 'dark' | 'light', accentId: AccentId | string | null | undefined): Colors {
+  const accent = getAccentPreset(accentId);
+  const base = mode === 'dark' ? baseDark : baseLight;
+  return {
+    ...base,
+    tint: accent.tint,
+    tintLight: mode === 'dark' ? accent.tint + '28' : accent.tint + '14',
+    tintDark: accent.tintDark,
+    streak: accent.streak,
+    streakLight: mode === 'dark' ? accent.streak + '22' : accent.streak + '18',
+  };
+}
+
+/** Legacy exports — kept for any callers that still reference the static palettes. */
+export const dark: Colors = buildColors('dark', 'orange');
+export const light: Colors = buildColors('light', 'orange');
