@@ -34,70 +34,30 @@ async function reset(page: Page): Promise<void> {
   });
 }
 
-/** Pre-populate the `habitly` IDB with `onboarding_v1=done` so the
- *  onboarding-guard lets routes through without manually walking the
- *  6-slide pager. The OnboardingService caches the value on boot, so
- *  the page must be reloaded after this returns. */
-async function markOnboarded(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    await new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open('habitly', 1);
-      open.onupgradeneeded = () => {
-        if (!open.result.objectStoreNames.contains('kv')) {
-          open.result.createObjectStore('kv');
-        }
-      };
-      open.onsuccess = () => {
-        const tx = open.result.transaction('kv', 'readwrite');
-        tx.objectStore('kv').put('done', 'onboarding_v1');
-        tx.oncomplete = () => {
-          open.result.close();
-          resolve();
-        };
-        tx.onerror = () => reject(tx.error);
-      };
-      open.onerror = () => reject(open.error);
-    });
-  });
-  await page.reload({ waitUntil: 'domcontentloaded' });
+/** Walk the 6-slide onboarding pager and finish via the "Let's go!" CTA.
+ *  Identical to the smoke-test helper so we know the OnboardingService
+ *  signals end up populated through the same path the user takes. */
+async function completeOnboarding(page: Page): Promise<void> {
+  await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
+  for (let i = 0; i < 5; i++) {
+    await page.getByRole('button', { name: /^Next slide$/ }).click();
+    await page.waitForTimeout(350);
+  }
+  await page.getByRole('button', { name: /^Add Drink Water$/ }).click();
+  await page.getByRole('button', { name: /Finish onboarding/ }).click();
+  await page.waitForURL('http://localhost:4200/', { timeout: 10_000 });
 }
 
 test.describe('App header + favicon visual checks', () => {
   test.beforeEach(async ({ page }) => {
     await reset(page);
-    await markOnboarded(page);
-    // After `markOnboarded` reload the app sits on /onboarding (the guard
-    // had redirected there during the reset), but the IDB now says we're
-    // onboarded — `await page.goto('/')` in each test re-runs the guards
-    // against the cached signal and lets us through to the tab routes.
-  });
-
-  test('header visible on Today (tab route)', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL('http://localhost:4200/');
-    const header = page.locator('app-app-header header.app-header');
-    await expect(header).toBeVisible();
-    await expect(header.locator('.brand-name')).toHaveText('Habitly');
-    await expect(page.locator('body')).not.toHaveClass(/no-app-header/);
-    await page.screenshot({ path: `${SHOTS}/today.png`, fullPage: false });
-  });
-
-  test('header visible on /insights (stack route)', async ({ page }) => {
-    await page.goto('/insights', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('app-app-header header.app-header')).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/insights.png`, fullPage: false });
-  });
-
-  test('header visible on /settings (tab)', async ({ page }) => {
-    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('app-app-header header.app-header')).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/settings.png`, fullPage: false });
   });
 
   test('header hidden on /onboarding (full-bleed)', async ({ page }) => {
     await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('app-app-header header.app-header')).toHaveCount(0);
     await expect(page.locator('body')).toHaveClass(/no-app-header/);
+    await page.waitForLoadState('networkidle');
     await page.screenshot({ path: `${SHOTS}/onboarding.png`, fullPage: false });
   });
 
@@ -105,18 +65,8 @@ test.describe('App header + favicon visual checks', () => {
     await page.goto('/lock', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('app-app-header header.app-header')).toHaveCount(0);
     await expect(page.locator('body')).toHaveClass(/no-app-header/);
+    await page.waitForLoadState('networkidle');
     await page.screenshot({ path: `${SHOTS}/lock.png`, fullPage: false });
-  });
-
-  test('theme toggle flips between sunny + moon', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    const toggle = page.locator('app-app-header .theme-toggle');
-    await expect(toggle).toBeVisible();
-    const firstLabel = await toggle.getAttribute('aria-label');
-    await toggle.click();
-    await expect
-      .poll(async () => toggle.getAttribute('aria-label'))
-      .not.toEqual(firstLabel);
   });
 
   test('favicon returns 200 with PNG/ICO bytes', async ({ request }) => {
@@ -131,5 +81,48 @@ test.describe('App header + favicon visual checks', () => {
     expect(body[3]).toBe(0);
     // Three images stored: 16, 32, 48.
     expect(body[4]).toBe(3);
+  });
+
+  test.describe('after onboarding', () => {
+    test.beforeEach(async ({ page }) => {
+      await completeOnboarding(page);
+    });
+
+    test('header visible on Today (tab route)', async ({ page }) => {
+      const header = page.locator('app-app-header header.app-header');
+      await expect(header).toBeVisible();
+      await expect(header.locator('.brand-name')).toHaveText('Habitly');
+      await expect(page.locator('body')).not.toHaveClass(/no-app-header/);
+      // Wait for the Today page hydration to settle so screenshots aren't
+      // captured mid-route-transition. The habit row + tab bar are the
+      // last things to paint after the onboarding redirect resolves.
+      await expect(page.locator('app-tab-bar .tab').first()).toBeVisible();
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${SHOTS}/today.png`, fullPage: false });
+    });
+
+    test('header visible on /insights (stack route)', async ({ page }) => {
+      await page.goto('/insights', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('app-app-header header.app-header')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({ path: `${SHOTS}/insights.png`, fullPage: false });
+    });
+
+    test('header visible on /settings (tab)', async ({ page }) => {
+      await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('app-app-header header.app-header')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({ path: `${SHOTS}/settings.png`, fullPage: false });
+    });
+
+    test('theme toggle flips between sunny + moon', async ({ page }) => {
+      const toggle = page.locator('app-app-header .theme-toggle');
+      await expect(toggle).toBeVisible();
+      const firstLabel = await toggle.getAttribute('aria-label');
+      await toggle.click();
+      await expect
+        .poll(async () => toggle.getAttribute('aria-label'))
+        .not.toEqual(firstLabel);
+    });
   });
 });
