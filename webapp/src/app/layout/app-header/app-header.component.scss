@@ -1,0 +1,76 @@
+@use '../../shared/styles/mixins' as x;
+
+:host {
+  display: contents;
+}
+
+/* Matches the bottom tab-bar's z-index (100) so the two layers composite
+ * predictably; sheets / confirmations / toasts live at 1000+ and still
+ * paint above. */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: var(--app-header-total);
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top, 0);
+  @include x.glass(var(--color-tab-overlay));
+  @include x.hairline-bottom(var(--color-tab-border));
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background-color: #ff8b1f;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: transparent;
+  border: 0;
+  appearance: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background-color var(--dur-fast) var(--ease-fast);
+  @include x.focus-ring;
+
+  &:hover {
+    background-color: var(--color-surface-hover);
+  }
+
+  &:active {
+    background-color: var(--color-surface-alt);
+  }
+}

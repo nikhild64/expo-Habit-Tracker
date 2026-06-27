@@ -15,6 +15,7 @@ import { PushTokenService } from './core/services/push-token.service';
 import { ServiceWorkerBridgeService } from './core/services/service-worker-bridge.service';
 import { ThemeService } from './core/services/theme.service';
 import { ToastService } from './core/services/toast.service';
+import { AppHeaderComponent } from './layout/app-header/app-header.component';
 import { InstallPromptComponent } from './shared/components/install-prompt/install-prompt.component';
 
 /**
@@ -45,15 +46,16 @@ import { InstallPromptComponent } from './shared/components/install-prompt/insta
   selector: 'app-root',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, InstallPromptComponent],
+  imports: [RouterOutlet, AppHeaderComponent, InstallPromptComponent],
   template: `
+    <app-app-header />
     <router-outlet />
     <app-install-prompt />
   `,
   styles: [`
     :host {
       display: block;
-      min-height: 100dvh;
+      min-height: calc(100dvh - var(--app-header-total));
     }
   `],
 })

@@ -108,20 +108,16 @@
 
 .accent-block {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
 .accent-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  overflow-x: auto;
-  padding: 8px 6px 8px 0;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
+  padding: 8px 0;
 }
 
 .accent-disk {

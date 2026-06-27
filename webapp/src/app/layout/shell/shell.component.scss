@@ -1,7 +1,10 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  /* Subtract the global header chrome so the shell + tab-bar fit inside
+   * one viewport. `--app-header-total` is 0 on full-bleed routes (where
+   * the shell isn't mounted anyway), so this is safe to leave hard-coded. */
+  min-height: calc(100dvh - var(--app-header-total));
   background-color: var(--color-bg);
   color: var(--color-text);
 }

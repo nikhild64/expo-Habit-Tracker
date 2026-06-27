@@ -193,12 +193,6 @@ export default class ProgressPage {
     this.selectedDay.set(null);
   }
 
-  protected async onRefresh(): Promise<void> {
-    this.haptics.selection();
-    await this.habitsService.loadFresh();
-    this.haptics.light();
-  }
-
   protected goToNew(): void {
     this.router.navigate(['/new']);
   }

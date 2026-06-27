@@ -6,7 +6,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--app-header-total));
   background-color: var(--color-bg);
   color: var(--color-text);
 }
@@ -18,7 +18,7 @@
   width: 100%;
   max-width: 540px;
   margin: 0 auto;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--app-header-total));
 }
 
 /* ── Header ────────────────────────────────────────────────────────────── */
@@ -27,8 +27,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: env(safe-area-inset-top, 0) 16px 14px;
-  padding-top: calc(14px + env(safe-area-inset-top, 0));
+  padding: 14px 16px;
   background-color: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   position: sticky;

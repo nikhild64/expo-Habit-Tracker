@@ -38,6 +38,14 @@
   box-shadow: inset 0 1px 0 $color;
 }
 
+/* Mirror of `hairline-top` for the bottom edge — used by the global
+ * `<app-app-header>` so it visually separates from page content with a
+ * single device-pixel rule that composites correctly over the glass
+ * overlay, without forcing the consumer into `position: relative`. */
+@mixin hairline-bottom($color: var(--color-tab-border)) {
+  box-shadow: inset 0 -1px 0 $color;
+}
+
 @mixin square($size) {
   width: $size;
   height: $size;

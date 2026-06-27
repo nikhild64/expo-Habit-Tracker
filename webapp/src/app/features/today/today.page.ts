@@ -298,12 +298,6 @@ export default class TodayPage implements OnDestroy {
     this.router.navigate(['/timer', id]);
   }
 
-  // ── Refresh ──────────────────────────────────────────────────────────
-  protected async onRefresh(): Promise<void> {
-    this.haptics.selection();
-    await this.habitsService.loadFresh();
-    this.haptics.light();
-  }
 
   // ── Category chip ────────────────────────────────────────────────────
   protected getCategoryMeta(c: HabitCategory) {

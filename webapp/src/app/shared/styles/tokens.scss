@@ -100,6 +100,19 @@
   --press-scale: 0.97;
 }
 
+/* ── Layout chrome (global header / tab-bar inset) ───────────────────────
+ * `--app-header-height` is the visual chrome height of `<app-app-header>`,
+ * exclusive of the iOS notch / status bar safe area. `--app-header-total`
+ * bakes the safe-area inset in so every page can just subtract one token
+ * from `100dvh` to get the available viewport. Both default to non-zero
+ * everywhere; the `body.no-app-header` rule in `styles.scss` zeroes them
+ * out on the full-bleed `/onboarding` and `/lock` routes so those screens
+ * claim the entire viewport. */
+:root {
+  --app-header-height: 48px;
+  --app-header-total: calc(var(--app-header-height) + env(safe-area-inset-top, 0));
+}
+
 /* ── Radius scale (matches the mobile app's componentry) ────────────────── */
 :root {
   --radius-sm: 8px;

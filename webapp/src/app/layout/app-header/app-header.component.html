@@ -1,0 +1,23 @@
+@if (visible()) {
+  <header class="app-header" role="banner">
+    <div class="brand">
+      <span class="brand-tile" aria-hidden="true">
+        <app-ionicon name="leaf" [size]="16" color="#fff" />
+      </span>
+      <span class="brand-name">Habitly</span>
+    </div>
+    <button
+      type="button"
+      class="theme-toggle"
+      [attr.aria-label]="toggleLabel()"
+      [title]="toggleLabel()"
+      (click)="theme.toggleTheme()"
+    >
+      <app-ionicon
+        [name]="theme.isDark() ? 'sunny' : 'moon'"
+        [size]="22"
+        color="var(--color-text-muted)"
+      />
+    </button>
+  </header>
+}

@@ -28,21 +28,6 @@
   margin: 0;
 }
 
-.refresh-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  @include x.focus-ring;
-}
-
 .section-label {
   font-size: 12px;
   font-weight: 600;

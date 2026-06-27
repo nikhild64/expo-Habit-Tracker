@@ -47,23 +47,6 @@
   @include x.focus-ring;
 }
 
-.refresh-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 6px 12px;
-  margin: 0 16px 4px;
-  border-radius: 14px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  @include x.focus-ring;
-}
-
 /* ── Permission banner ─────────────────────────────────────────────── */
 
 .perm-banner {

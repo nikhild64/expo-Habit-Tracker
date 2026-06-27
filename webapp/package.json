@@ -11,7 +11,8 @@
     "test:watch": "ng test",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "icons:gen": "node scripts/generate-icons.mjs"
+    "icons:gen": "node scripts/generate-icons.mjs",
+    "favicon:gen": "node scripts/generate-favicon.mjs"
   },
   "private": true,
   "packageManager": "npm@11.4.2",
@@ -38,6 +39,7 @@
     "@playwright/test": "^1.61.1",
     "@types/canvas-confetti": "^1.9.0",
     "jsdom": "^28.0.0",
+    "png-to-ico": "^3.0.1",
     "prettier": "^3.8.1",
     "sharp": "^0.35.2",
     "typescript": "~5.9.2",

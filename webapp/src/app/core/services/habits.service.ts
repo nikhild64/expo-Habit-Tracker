@@ -70,6 +70,34 @@ export class HabitsService {
 
   constructor() {
     this.loadFresh();
+    this.installAutoRefresh();
+  }
+
+  /**
+   * Auto-refresh on tab focus.
+   *
+   * Web has no pull-to-refresh primitive, so we rely on the browser's
+   * `visibilitychange` event to silently re-run `loadFresh()` whenever the
+   * tab becomes visible again. This covers the three edge cases the
+   * (now-removed) manual Refresh button addressed:
+   *
+   *   1. Midnight rollover — date changed while the tab was hidden, so the
+   *      freeze auto-consumption needs to re-run to apply yesterday's freeze.
+   *   2. Multi-tab sync — another tab of this PWA wrote new state to IDB.
+   *   3. Service-worker push DONE action that mutated state while we were
+   *      backgrounded.
+   *
+   * Throttled to once every 60 s so rapid tab switching doesn't thrash IDB.
+   */
+  private installAutoRefresh(): void {
+    if (typeof document === 'undefined') return;
+    let lastRefresh = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastRefresh < 60_000) return;
+      lastRefresh = Date.now();
+      void this.loadFresh();
+    });
   }
 
   // ── Persistence ────────────────────────────────────────────────────────

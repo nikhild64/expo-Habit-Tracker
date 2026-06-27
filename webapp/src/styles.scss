@@ -46,12 +46,31 @@ body {
   overflow-x: hidden;
   min-height: 100vh;
   min-height: 100dvh;
+  /* Reserve room for the fixed `<app-app-header>` so page content starts
+   * below it. `--app-header-total` already bakes in the iOS safe-area
+   * inset; the `box-sizing: border-box` declaration up at `*` keeps the
+   * min-height inclusive of the padding so body stays exactly 100dvh
+   * (and not 100dvh + header-height tall, which would push the bottom
+   * 48 px past the viewport on a freshly-loaded page). */
+  padding-top: var(--app-header-total);
+  /* Full-bleed routes (`/onboarding`, `/lock`) opt out below. */
+}
+
+/* `<app-app-header>` writes this class to `<body>` whenever its
+ * visibility signal flips false — i.e. on `/onboarding` and `/lock`.
+ * Zero'ing both the padding AND the variable lets every `min-height:
+ * calc(100dvh - var(--app-header-total))` selector down the tree
+ * resolve to a full 100dvh, so the immersive flow actually fills the
+ * viewport. */
+body.no-app-header {
+  padding-top: 0;
+  --app-header-total: 0px;
 }
 
 app-root {
   display: block;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--app-header-total));
   background-color: var(--color-bg);
   color: var(--color-text);
 }
