@@ -1,0 +1,67 @@
+:host {
+  display: contents;
+}
+
+.safe {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0));
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.wrap {
+  padding: 0 16px;
+  pointer-events: auto;
+}
+
+.toast {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  min-width: 260px;
+  max-width: 480px;
+  box-shadow: var(--shadow-toast);
+  animation: fade-in-up var(--dur-fast) var(--ease-snappy);
+}
+
+.message {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 19px;
+  color: var(--color-text);
+}
+
+.action {
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+}
+
+.dismiss {
+  background: transparent;
+  border: 0;
+  padding: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

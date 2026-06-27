@@ -1,0 +1,81 @@
+<div class="page">
+  <header class="header">
+    <button type="button" class="back-btn" aria-label="Back" (click)="goBack()">
+      <app-ionicon name="arrow-back" [size]="22" />
+    </button>
+    <div class="title-block">
+      <h1 class="title">Habit Templates</h1>
+      <p class="subtitle">{{ subtitle() }}</p>
+    </div>
+  </header>
+
+  <div class="content">
+    @for (section of bundles; track section.bundle.id) {
+      @let allDone = allAdded(section.templates);
+      <section class="bundle-section">
+        <div class="bundle-header">
+          <div
+            class="bundle-icon"
+            [style.background-color]="section.bundle.color + '22'"
+          >
+            <app-ionicon
+              [name]="section.bundle.icon"
+              [size]="16"
+              [color]="section.bundle.color"
+            />
+          </div>
+          <div class="bundle-title-wrap">
+            <h2 class="bundle-title">{{ section.bundle.label }}</h2>
+            <p class="bundle-desc">{{ section.bundle.description }}</p>
+          </div>
+          <button
+            type="button"
+            class="add-all-btn"
+            [style.border-color]="allDone ? 'var(--color-done)' : section.bundle.color"
+            [style.color]="allDone ? 'var(--color-done)' : section.bundle.color"
+            [disabled]="allDone"
+            (click)="openAddAll(section.templates)"
+          >
+            {{ allDone ? 'Added' : 'Add all ' + section.templates.length }}
+          </button>
+        </div>
+
+        <div class="template-cards">
+          @for (t of section.templates; track t.id) {
+            @let added = isAdded(t);
+            <div class="template-card">
+              <div class="template-icon" [style.background-color]="t.color">
+                <app-ionicon [name]="t.icon" [size]="20" color="#fff" />
+              </div>
+              <div class="template-info">
+                <h3 class="template-name">{{ t.name }}</h3>
+                <p class="template-desc">{{ t.description }}</p>
+                <p class="template-freq">{{ freqLabel(t) }}</p>
+              </div>
+              <button
+                type="button"
+                class="add-btn"
+                [class.added]="added"
+                [attr.aria-label]="added ? t.name + ' already added' : 'Add ' + t.name"
+                [disabled]="added"
+                (click)="addOne(t)"
+              >
+                <app-ionicon [name]="added ? 'checkmark' : 'add'" [size]="18" />
+              </button>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </div>
+</div>
+
+<app-confirmation
+  [visible]="pendingAddAll() !== null"
+  [title]="confirmTitle()"
+  [message]="confirmMessage()"
+  icon="add-circle-outline"
+  confirmLabel="Add all"
+  (closed)="closeAddAll()"
+  (confirmed)="confirmAddAll()"
+/>

@@ -1,0 +1,542 @@
+@use '../../shared/styles/motion' as m;
+@use '../../shared/styles/mixins' as x;
+
+:host {
+  display: block;
+  background-color: var(--color-bg);
+}
+
+.page {
+  padding-bottom: 24px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 8px;
+}
+
+.greeting {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.date {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--color-text);
+  margin-top: 2px;
+}
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  background-color: var(--color-tint-light);
+  border: 0;
+  appearance: none;
+  cursor: pointer;
+  @include x.focus-ring;
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  margin: 0 16px 4px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  @include x.focus-ring;
+}
+
+/* ── Permission banner ─────────────────────────────────────────────── */
+
+.perm-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 8px;
+  padding: 10px 14px;
+  border: 0;
+  background-color: var(--color-danger-light);
+  color: var(--color-danger);
+  border-radius: 10px;
+  text-align: left;
+  width: calc(100% - 32px);
+  cursor: pointer;
+  appearance: none;
+  font-size: 12px;
+  font-weight: 500;
+  @include x.focus-ring;
+}
+
+.perm-banner-text {
+  flex: 1;
+}
+
+/* ── Progress card ─────────────────────────────────────────────────── */
+
+.progress-card {
+  margin: 0 16px 8px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progress-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.progress-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.streak-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.streak-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── TOD breakdown bars ────────────────────────────────────────────── */
+
+.tod-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tod-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tod-label {
+  font-size: 10px;
+  font-weight: 600;
+  width: 56px;
+  color: var(--color-text-muted);
+}
+
+.tod-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background-color: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.tod-fill {
+  height: 5px;
+  border-radius: 3px;
+}
+
+.tod-count {
+  font-size: 10px;
+  font-weight: 700;
+  width: 28px;
+  text-align: right;
+  color: var(--color-text-secondary);
+}
+
+/* ── Routines section ──────────────────────────────────────────────── */
+
+.routines-section {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  padding-bottom: 4px;
+}
+
+.section-header-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.section-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  @include x.focus-ring;
+}
+
+.routines-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  @include x.focus-ring;
+}
+
+.routines-empty-text {
+  flex: 1;
+}
+
+.routines-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Category chip rail ────────────────────────────────────────────── */
+
+.cat-rail {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+/* ── List label ────────────────────────────────────────────────────── */
+
+.list-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 8px 16px 4px;
+}
+
+/* ── Drop list / row container ─────────────────────────────────────── */
+
+.drop-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row-wrap {
+  position: relative;
+  padding: 0 16px 8px;
+}
+
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.swipe-surface {
+  position: relative;
+  z-index: 1;
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  touch-action: pan-y;
+}
+
+.swipe-action {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  background-color: #ef4444;
+  border-radius: 16px;
+  border: 0;
+  appearance: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* ── Section header (TOD) ──────────────────────────────────────────── */
+
+.tod-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  margin: 12px 0 6px;
+
+  &.current {
+    background-color: var(--color-tint-light);
+    border-color: var(--color-tint);
+  }
+}
+
+.tod-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: var(--color-surface-alt);
+
+  .current & {
+    background-color: var(--color-tint);
+  }
+}
+
+.tod-head-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--color-text-secondary);
+
+  .current & {
+    color: var(--color-tint);
+  }
+}
+
+.tod-head-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--color-text-muted);
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 16px;
+}
+
+.empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
+  background-color: var(--color-surface-alt);
+  margin-bottom: 4px;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.empty-body {
+  font-size: 14px;
+  text-align: center;
+  line-height: 20px;
+  padding: 0 20px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 280px;
+}
+
+/* ── Note sheet ───────────────────────────────────────────────────── */
+
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.note-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.note-sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 14px;
+}
+
+.note-input {
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-alt);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 22px;
+  resize: vertical;
+  margin-bottom: 18px;
+}
+
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.note-save {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 12px;
+  border: 0;
+  background-color: var(--color-tint);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+.note-skip {
+  padding: 14px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+/* ── CDK drag overrides ────────────────────────────────────────────── */
+
+.cdk-drag-preview {
+  box-shadow: var(--shadow-overlay);
+  border-radius: 16px;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0;
+}
+
+.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.drop-list.cdk-drop-list-dragging .row-wrap:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}

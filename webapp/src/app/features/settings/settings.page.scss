@@ -1,0 +1,379 @@
+@use '../../shared/styles/mixins' as x;
+
+:host {
+  display: block;
+  background-color: var(--color-bg);
+}
+
+.page {
+  padding: 8px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heading {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--color-text);
+  margin: 0 0 12px;
+  padding-top: 8px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+/* ── Cards / rows ─────────────────────────────────────────────────── */
+
+.card {
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  padding: 0 14px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  appearance: none;
+  cursor: pointer;
+  @include x.focus-ring;
+
+  &.with-border {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background-color: var(--color-surface-alt);
+  flex-shrink: 0;
+}
+
+.row-label {
+  flex: 1;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.row-value {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.row-value.hint-active {
+  color: var(--color-tint);
+}
+
+.row-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.row-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* ── Accent row ───────────────────────────────────────────────────── */
+
+.accent-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.accent-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 8px 6px 8px 0;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.accent-disk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  border: 0;
+  appearance: none;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &.active {
+    border: 3px solid var(--color-text);
+  }
+}
+
+/* ── Toggle switch ────────────────────────────────────────────────── */
+
+.toggle {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: 0;
+  background-color: var(--color-border);
+  cursor: pointer;
+  appearance: none;
+  transition: background-color var(--dur-fast) var(--ease-fast);
+  @include x.focus-ring;
+
+  &.on {
+    background-color: var(--color-tint);
+  }
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: #fff;
+  transition: left var(--dur-fast) var(--ease-fast);
+}
+
+.toggle.on .thumb {
+  left: 20px;
+}
+
+/* ── Time pill ────────────────────────────────────────────────────── */
+
+.time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 0;
+  background-color: var(--color-tint-light);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  padding: 0 4px;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ── Push token panel ─────────────────────────────────────────────── */
+
+.token-area {
+  padding: 10px 0 4px;
+}
+
+.token-hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 18px;
+  margin: 0 0 4px;
+}
+
+.token-box {
+  background-color: var(--color-surface-alt);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+}
+
+.token-text {
+  font-size: 11px;
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+  line-height: 18px;
+  user-select: text;
+  word-break: break-all;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--color-tint-light);
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+  margin-bottom: 10px;
+  @include x.focus-ring;
+}
+
+.muted {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  padding: 12px 0;
+  margin: 0;
+}
+
+/* ── Archived buttons ─────────────────────────────────────────────── */
+
+.restore-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background-color: var(--color-tint-light);
+  color: var(--color-tint);
+  font-size: 12px;
+  font-weight: 600;
+  border: 0;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+.trash-btn {
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+/* ── Loading spinner ──────────────────────────────────────────────── */
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid;
+  border-radius: 50%;
+  border-top-color: transparent !important;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Reset App (Danger zone) ──────────────────────────────────────── */
+
+.reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background-color: var(--color-danger-light);
+  border: 1px solid;
+  border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
+  cursor: pointer;
+  appearance: none;
+  text-align: left;
+  @include x.focus-ring;
+}
+
+.reset-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.reset-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Clock face sheet ─────────────────────────────────────────────── */
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+}
+
+.modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+.clock-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.done-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 0;
+  background-color: var(--color-tint);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}

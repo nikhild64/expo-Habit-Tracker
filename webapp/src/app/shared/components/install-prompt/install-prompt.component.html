@@ -1,0 +1,39 @@
+@if (visible()) {
+  <div
+    class="banner"
+    role="region"
+    aria-label="Install Habitly"
+  >
+    <span class="icon" aria-hidden="true">
+      <app-ionicon name="phone-portrait-outline" [size]="20" color="var(--color-tint)" />
+    </span>
+    <div class="text">
+      @if (isIos()) {
+        <strong class="title">Add Habitly to your Home Screen</strong>
+        <span class="sub">
+          Tap
+          <app-ionicon name="share-outline" [size]="13" color="var(--color-text-secondary)" />
+          Share, then "Add to Home Screen". Web Push needs this on iOS.
+        </span>
+      } @else {
+        <strong class="title">Install Habitly</strong>
+        <span class="sub">Add it to your home screen for the full experience.</span>
+      }
+    </div>
+    <div class="actions">
+      @if (canInstall()) {
+        <button type="button" class="install" (click)="install()" aria-label="Install Habitly">
+          Install
+        </button>
+      }
+      <button
+        type="button"
+        class="later"
+        (click)="dismiss()"
+        [attr.aria-label]="isIos() ? 'Dismiss install hint' : 'Later'"
+      >
+        {{ isIos() ? 'Got it' : 'Later' }}
+      </button>
+    </div>
+  </div>
+}

@@ -1,0 +1,86 @@
+@use '../../styles/typography' as t;
+@use '../../styles/motion' as m;
+@use '../../styles/mixins' as x;
+
+:host {
+  display: inline-block;
+}
+
+:host(.full-width),
+.full-width {
+  display: block;
+  align-self: stretch;
+  width: 100%;
+}
+
+button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: 13px 18px;
+  min-height: 46px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  user-select: none;
+  @include x.focus-ring;
+  @include m.press-scale;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+button.full-width {
+  width: 100%;
+}
+
+button[data-variant='primary'] {
+  background-color: var(--color-tint);
+  color: #fff;
+  border-color: var(--color-tint);
+}
+
+button[data-variant='secondary'] {
+  background-color: var(--color-surface-alt);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+button[data-variant='ghost'] {
+  background-color: transparent;
+  color: var(--color-text);
+  border-color: transparent;
+}
+
+button[data-variant='danger'] {
+  background-color: var(--color-danger);
+  color: #fff;
+  border-color: var(--color-danger);
+}
+
+.inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.label {
+  pointer-events: none;
+}
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

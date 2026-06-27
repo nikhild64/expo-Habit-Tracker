@@ -1,0 +1,333 @@
+/* ============================================================================
+ * Habitly design tokens — CSS variables for theme, accent, typography, motion
+ *
+ * Source of truth (ported 1:1 from the Expo app):
+ *   src/lib/ui/theme.ts        (Colors + AccentPreset)
+ *   src/lib/ui/colors.ts       (HABIT_COLORS, HABIT_ICONS, CATEGORY_META)
+ *   src/lib/ui/typography.ts   (T scale + S spacing)
+ *   src/lib/ui/motion.ts       (TIMINGS + SPRINGS)
+ *
+ * How to use:
+ *   var(--color-bg), var(--color-tint), var(--s-4), var(--font-title-size), ...
+ *   [data-theme="dark|light"] on <html> swaps base palette.
+ *   [data-accent="orange|indigo|...|amber"] on <html> swaps the 5 accent vars.
+ *
+ * Per-accent tintLight uses the same 8-bit alpha suffix as the mobile app:
+ *   `28` in dark  → 0.157 alpha     `14` in light → 0.078 alpha
+ *   `22` (streakLight dark) / `18` (streakLight light)
+ * ============================================================================ */
+
+/* ── Spacing scale (S(n) = n*4px) ─────────────────────────────────────────── */
+:root {
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 28px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-14: 56px;
+}
+
+/* ── Typography scale (T.display → micro from typography.ts) ─────────────── */
+:root {
+  --font-family-system:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-family-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo,
+    monospace;
+
+  /* display: 32 / 700 / -0.5 */
+  --font-display-size: 32px;
+  --font-display-weight: 700;
+  --font-display-spacing: -0.5px;
+
+  /* heading: 24 / 700 / -0.3 */
+  --font-heading-size: 24px;
+  --font-heading-weight: 700;
+  --font-heading-spacing: -0.3px;
+
+  /* title: 20 / 700 / -0.2 */
+  --font-title-size: 20px;
+  --font-title-weight: 700;
+  --font-title-spacing: -0.2px;
+
+  /* titleSmall: 17 / 700 */
+  --font-title-small-size: 17px;
+  --font-title-small-weight: 700;
+  --font-title-small-spacing: 0;
+
+  /* body: 15 / 500 */
+  --font-body-size: 15px;
+  --font-body-weight: 500;
+
+  /* bodySmall: 13 / 500 */
+  --font-body-small-size: 13px;
+  --font-body-small-weight: 500;
+
+  /* caption: 12 / 500 */
+  --font-caption-size: 12px;
+  --font-caption-weight: 500;
+
+  /* micro: 11 / 600 / 0.4 / uppercase */
+  --font-micro-size: 11px;
+  --font-micro-weight: 600;
+  --font-micro-spacing: 0.4px;
+}
+
+/* ── Motion tokens (ported from motion.ts) ───────────────────────────────── */
+:root {
+  /* Duration */
+  --dur-fast: 150ms;
+  --dur-normal: 250ms;
+  --dur-slow: 400ms;
+
+  /* Easings — chosen to mirror the Reanimated cubic curves */
+  --ease-fast: cubic-bezier(0.33, 1, 0.68, 1); /* cubic-out */
+  --ease-normal: cubic-bezier(0.25, 0.46, 0.45, 0.94); /* quad-out */
+  --ease-slow: cubic-bezier(0.65, 0, 0.35, 1); /* cubic-inout (ring) */
+
+  /* Spring approximations for press / settle */
+  --ease-snappy: cubic-bezier(0.25, 1.5, 0.5, 1);
+  --ease-smooth: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.3, 1.7, 0.4, 1);
+
+  /* Press-scale used by tap animations across the UI */
+  --press-scale: 0.97;
+}
+
+/* ── Radius scale (matches the mobile app's componentry) ────────────────── */
+:root {
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+}
+
+/* ── Shadows (matches mobile elevation tokens) ───────────────────────────── */
+:root {
+  --shadow-toast: 0 6px 14px rgba(0, 0, 0, 0.18);
+  --shadow-card: 0 4px 10px rgba(0, 0, 0, 0.12);
+  --shadow-fab: 0 4px 10px rgba(0, 0, 0, 0.25);
+  --shadow-overlay: 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================================================
+ * Base palette — :root defaults to DARK so the first paint matches `<html
+ * data-theme="dark">`. The light overrides flip every token below.
+ * Ported byte-identical from src/lib/ui/theme.ts baseDark / baseLight.
+ * ============================================================================ */
+
+:root,
+:root[data-theme='dark'] {
+  --color-bg: #0f0f14;
+  --color-surface: #1b1b23;
+  --color-surface-alt: #24242e;
+  --color-surface-hover: #2e2e3c;
+
+  --color-text: #f4f4fe;
+  --color-text-secondary: #b4b4cc;
+  --color-text-muted: #8080a4;
+
+  --color-border: #38384e;
+  --color-border-strong: #4c4c66;
+
+  --color-done: #34d399;
+  --color-done-light: #34d39922;
+  --color-danger: #f87171;
+  --color-danger-light: #f8717122;
+
+  --color-tab-bar: #161620;
+  --color-tab-border: #38384e;
+
+  /* Glass tab bar surface: theme.surface with ~75% alpha, plus blur. */
+  --color-tab-overlay: rgba(15, 15, 20, 0.75);
+}
+
+:root[data-theme='light'] {
+  --color-bg: #fefbf5;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fff4e6;
+  --color-surface-hover: #ffead0;
+
+  --color-text: #1c1912;
+  --color-text-secondary: #5c5345;
+  /* Darkened from #9C8E7C to pass WCAG 3:1 against surfaceAlt + surfaceHover.
+   * See scripts/contrast-audit.js in the mobile repo. */
+  --color-text-muted: #8b7e6e;
+
+  --color-border: #eae0d0;
+  --color-border-strong: #d4c8b4;
+
+  --color-done: #16a34a;
+  --color-done-light: #f0fdf4;
+  --color-danger: #dc2626;
+  --color-danger-light: #fef2f2;
+
+  --color-tab-bar: #fefbf5;
+  --color-tab-border: #eae0d0;
+
+  --color-tab-overlay: rgba(254, 251, 245, 0.75);
+}
+
+/* ============================================================================
+ * Accent palette — 5 tokens per accent. tintLight + streakLight bake the 8-bit
+ * alpha suffix the mobile app uses (28/14 and 22/18).
+ *
+ * Defaults to `orange` so :root paint matches `<html data-accent="orange">`.
+ * ============================================================================ */
+
+@mixin -accent($tint, $tintDark, $streak, $alphaTintDark, $alphaTintLight, $alphaStreakDark, $alphaStreakLight) {
+  --color-tint: #{$tint};
+  --color-tint-dark: #{$tintDark};
+  --color-streak: #{$streak};
+}
+
+/* Helper to render the accent block for both themes' alpha values. */
+@mixin -accent-with-alpha($tint, $tintDark, $streak) {
+  --color-tint: #{$tint};
+  --color-tint-dark: #{$tintDark};
+  --color-streak: #{$streak};
+}
+
+/* ── Orange (default — free) ──────────────────────────────────────────── */
+:root,
+:root[data-accent='orange'] {
+  --color-tint: #ff8b1f;
+  --color-tint-dark: #d96f0e;
+  --color-streak: #fb923c;
+}
+:root[data-accent='orange'][data-theme='dark'],
+:root[data-accent='orange']:not([data-theme='light']) {
+  --color-tint-light: #ff8b1f28; /* dark: 28 */
+  --color-streak-light: #fb923c22; /* dark: 22 */
+}
+:root[data-accent='orange'][data-theme='light'] {
+  --color-tint-light: #ff8b1f14; /* light: 14 */
+  --color-streak-light: #fb923c18; /* light: 18 */
+}
+
+/* ── Indigo (free) ─────────────────────────────────────────────────────── */
+:root[data-accent='indigo'] {
+  --color-tint: #6366f1;
+  --color-tint-dark: #4f46e5;
+  --color-streak: #818cf8;
+}
+:root[data-accent='indigo'][data-theme='dark'],
+:root[data-accent='indigo']:not([data-theme='light']) {
+  --color-tint-light: #6366f128;
+  --color-streak-light: #818cf822;
+}
+:root[data-accent='indigo'][data-theme='light'] {
+  --color-tint-light: #6366f114;
+  --color-streak-light: #818cf818;
+}
+
+/* ── Emerald (free) ────────────────────────────────────────────────────── */
+:root[data-accent='emerald'] {
+  --color-tint: #10b981;
+  --color-tint-dark: #059669;
+  --color-streak: #34d399;
+}
+:root[data-accent='emerald'][data-theme='dark'],
+:root[data-accent='emerald']:not([data-theme='light']) {
+  --color-tint-light: #10b98128;
+  --color-streak-light: #34d39922;
+}
+:root[data-accent='emerald'][data-theme='light'] {
+  --color-tint-light: #10b98114;
+  --color-streak-light: #34d39918;
+}
+
+/* ── Rose (shop) ───────────────────────────────────────────────────────── */
+:root[data-accent='rose'] {
+  --color-tint: #f43f5e;
+  --color-tint-dark: #e11d48;
+  --color-streak: #fb7185;
+}
+:root[data-accent='rose'][data-theme='dark'],
+:root[data-accent='rose']:not([data-theme='light']) {
+  --color-tint-light: #f43f5e28;
+  --color-streak-light: #fb718522;
+}
+:root[data-accent='rose'][data-theme='light'] {
+  --color-tint-light: #f43f5e14;
+  --color-streak-light: #fb718518;
+}
+
+/* ── Slate (shop) ──────────────────────────────────────────────────────── */
+:root[data-accent='slate'] {
+  --color-tint: #64748b;
+  --color-tint-dark: #475569;
+  --color-streak: #94a3b8;
+}
+:root[data-accent='slate'][data-theme='dark'],
+:root[data-accent='slate']:not([data-theme='light']) {
+  --color-tint-light: #64748b28;
+  --color-streak-light: #94a3b822;
+}
+:root[data-accent='slate'][data-theme='light'] {
+  --color-tint-light: #64748b14;
+  --color-streak-light: #94a3b818;
+}
+
+/* ── Violet (shop) ─────────────────────────────────────────────────────── */
+:root[data-accent='violet'] {
+  --color-tint: #8b5cf6;
+  --color-tint-dark: #7c3aed;
+  --color-streak: #a78bfa;
+}
+:root[data-accent='violet'][data-theme='dark'],
+:root[data-accent='violet']:not([data-theme='light']) {
+  --color-tint-light: #8b5cf628;
+  --color-streak-light: #a78bfa22;
+}
+:root[data-accent='violet'][data-theme='light'] {
+  --color-tint-light: #8b5cf614;
+  --color-streak-light: #a78bfa18;
+}
+
+/* ── Teal (shop) ──────────────────────────────────────────────────────── */
+:root[data-accent='teal'] {
+  --color-tint: #14b8a6;
+  --color-tint-dark: #0d9488;
+  --color-streak: #2dd4bf;
+}
+:root[data-accent='teal'][data-theme='dark'],
+:root[data-accent='teal']:not([data-theme='light']) {
+  --color-tint-light: #14b8a628;
+  --color-streak-light: #2dd4bf22;
+}
+:root[data-accent='teal'][data-theme='light'] {
+  --color-tint-light: #14b8a614;
+  --color-streak-light: #2dd4bf18;
+}
+
+/* ── Amber (shop) ─────────────────────────────────────────────────────── */
+:root[data-accent='amber'] {
+  --color-tint: #f59e0b;
+  --color-tint-dark: #d97706;
+  --color-streak: #fbbf24;
+}
+:root[data-accent='amber'][data-theme='dark'],
+:root[data-accent='amber']:not([data-theme='light']) {
+  --color-tint-light: #f59e0b28;
+  --color-streak-light: #fbbf2422;
+}
+:root[data-accent='amber'][data-theme='light'] {
+  --color-tint-light: #f59e0b14;
+  --color-streak-light: #fbbf2418;
+}
+
+/* Provide an orange tint-light/streak-light fallback at :root so any element
+ * styled before [data-theme] resolves still has a value. */
+:root {
+  --color-tint-light: #ff8b1f28;
+  --color-streak-light: #fb923c22;
+}

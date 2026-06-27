@@ -1,0 +1,240 @@
+/**
+ * Pomodoro Timer — visuals from src/app/timer/[id].tsx.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  min-height: 100dvh;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0));
+}
+
+.close-btn {
+  background: none;
+  border: 0;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.mode-wrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.mode-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.header-spacer {
+  width: 28px;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 24px calc(48px + env(safe-area-inset-bottom, 0));
+  overflow-y: auto;
+}
+
+.habit-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  text-align: center;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.cycle-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
+/* ── Ring + center text ───────────────────────────────────────────────── */
+
+.ring-wrap {
+  position: relative;
+  margin: 32px 0;
+  width: 260px;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.time-main {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -3px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.time-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.icon-btn-lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.play-btn {
+  width: 92px;
+  height: 92px;
+  border-radius: 46px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  /* background-color set inline as habit.color */
+}
+
+/* ── Today card ───────────────────────────────────────────────────────── */
+
+.today-card {
+  align-self: stretch;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.today-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.today-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+}
+
+.today-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.today-track {
+  height: 6px;
+  background-color: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.today-fill {
+  height: 6px;
+  border-radius: 3px;
+  /* width + background-color set inline */
+}
+
+/* ── Not found ────────────────────────────────────────────────────────── */
+
+.not-found {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+}
+
+.not-found-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.back-link {
+  background: none;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}

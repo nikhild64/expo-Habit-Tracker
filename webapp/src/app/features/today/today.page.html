@@ -1,0 +1,285 @@
+<section class="page">
+  <!-- ── Header ────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div style="flex: 1; min-width: 0">
+      <div class="greeting">{{ greeting() }}</div>
+      <div class="date">{{ dateLabel() }}</div>
+    </div>
+    <button type="button" class="add-btn" (click)="goToNew()" aria-label="Add new habit">
+      <app-ionicon name="add" [size]="22" color="var(--color-tint)" />
+    </button>
+  </header>
+
+  <!-- ── Permission-denied banner ─────────────────────────────────── -->
+  @if (permissionState() === 'denied') {
+    <button type="button" class="perm-banner" (click)="onPermissionBanner()">
+      <app-ionicon name="notifications-off-outline" [size]="14" color="var(--color-danger)" />
+      <span class="perm-banner-text">Notifications disabled — tap to enable</span>
+      <app-ionicon name="chevron-forward" [size]="12" color="var(--color-danger)" />
+    </button>
+  }
+
+  <!-- ── Refresh button ───────────────────────────────────────────── -->
+  <button type="button" class="refresh-btn" (click)="onRefresh()" aria-label="Refresh today">
+    <app-ionicon name="refresh-outline" [size]="14" />
+    Refresh
+  </button>
+
+  <!-- ── Progress card ────────────────────────────────────────────── -->
+  @if (total() > 0) {
+    <div class="progress-card">
+      <div class="progress-top">
+        <app-progress-ring
+          [progress]="progress()"
+          [size]="84"
+          [stroke]="8"
+          [color]="allDone() ? 'var(--color-done)' : 'var(--color-tint)'"
+          [trackColor]="'var(--color-surface-alt)'"
+          [label]="progressLabel()"
+        />
+        <div class="progress-info">
+          <div>
+            <div class="progress-title">
+              @if (allDone()) {
+                All done!
+              } @else {
+                {{ doneCount() }} of {{ total() }} done
+              }
+            </div>
+            <div class="progress-sub">Today's progress</div>
+          </div>
+
+          @if (todBars().length > 0) {
+            <div class="tod-list">
+              @for (sec of todBars(); track sec.tod) {
+                <div class="tod-row">
+                  <app-ionicon [name]="sec.meta.icon" [size]="10" color="var(--color-text-muted)" />
+                  <span class="tod-label">{{ sec.meta.label }}</span>
+                  <span class="tod-track">
+                    <span
+                      class="tod-fill"
+                      [style.width.%]="sec.ratio * 100"
+                      [style.background-color]="allDone() ? 'var(--color-done)' : 'var(--color-tint)'"
+                    ></span>
+                  </span>
+                  <span class="tod-count">{{ sec.done }}/{{ sec.total }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (habitsWithStreak().length > 0) {
+        <div class="streak-label">Active streaks</div>
+        <div class="streak-rail">
+          @for (h of habitsWithStreak(); track h.id) {
+            <app-streak-pill [habit]="h" (pressed)="openHabit(h.id)" />
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Routines section ─────────────────────────────────────────── -->
+  <div class="routines-section">
+    <div class="section-row">
+      <div class="section-header-label">Routines</div>
+      <button
+        type="button"
+        class="section-add-btn"
+        (click)="goToNewRoutine()"
+        aria-label="Add new routine"
+      >
+        <app-ionicon name="add-circle-outline" [size]="20" color="var(--color-tint)" />
+      </button>
+    </div>
+    @if (routines().length === 0) {
+      <button type="button" class="routines-empty" (click)="goToNewRoutine()">
+        <app-ionicon name="list-outline" [size]="18" color="var(--color-text-muted)" />
+        <span class="routines-empty-text">Stack habits into a daily routine</span>
+        <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+      </button>
+    } @else {
+      <div class="routines-list">
+        @for (r of routines(); track r.id) {
+          <app-routine-card
+            [routine]="r"
+            [habits]="habits()"
+            (pressed)="openRoutine(r.id)"
+          />
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ── Category chip rail ──────────────────────────────────────── -->
+  @if (presentCategories().length > 1) {
+    <div class="cat-rail">
+      <button
+        type="button"
+        class="cat-chip"
+        [style.background-color]="selectedCategory() === 'All' ? 'var(--color-tint)' : null"
+        [style.border-color]="selectedCategory() === 'All' ? 'var(--color-tint)' : null"
+        [style.color]="selectedCategory() === 'All' ? '#fff' : null"
+        (click)="onAllChip()"
+      >
+        <span>All</span>
+      </button>
+      @for (cat of presentCategories(); track cat) {
+        <button
+          type="button"
+          class="cat-chip"
+          [style.background-color]="selectedCategory() === cat ? getCategoryMeta(cat).color : null"
+          [style.border-color]="selectedCategory() === cat ? getCategoryMeta(cat).color : null"
+          [style.color]="selectedCategory() === cat ? '#fff' : null"
+          (click)="onCategoryChip(cat)"
+        >
+          <app-ionicon
+            [name]="getCategoryMeta(cat).icon"
+            [size]="12"
+            [color]="selectedCategory() === cat ? '#fff' : getCategoryMeta(cat).color"
+          />
+          <span>{{ getCategoryMeta(cat).label }}</span>
+        </button>
+      }
+    </div>
+  }
+
+  <!-- ── Habit list / Empty state ────────────────────────────────── -->
+  @if (total() > 0) {
+    <div class="list-label">Habits</div>
+
+    <div
+      class="drop-list"
+      cdkDropList
+      [cdkDropListData]="listItems()"
+      (cdkDropListDropped)="onDrop($event)"
+    >
+      @for (item of listItems(); track item.id) {
+        <div
+          class="row-wrap"
+          cdkDrag
+          [cdkDragDisabled]="item.kind !== 'habit'"
+          [cdkDragData]="item"
+        >
+          @if (item.kind === 'section') {
+            <div class="tod-head" [class.current]="currentTOD() === item.tod">
+              <span class="tod-head-icon">
+                <app-ionicon
+                  [name]="todMeta(item.tod).icon"
+                  [size]="14"
+                  [color]="currentTOD() === item.tod ? '#fff' : 'var(--color-text-secondary)'"
+                />
+              </span>
+              <span class="tod-head-label">{{ todMeta(item.tod).label }}</span>
+              <span class="tod-head-count">{{ item.done }} / {{ item.count }}</span>
+            </div>
+          } @else {
+            <div
+              class="swipe-wrap"
+              appLongPress
+              (longPress)="openContextMenu(item.habit)"
+            >
+              <button
+                type="button"
+                class="swipe-action"
+                aria-label="Delete habit"
+                (click)="softDelete(item.habit)"
+              >
+                <app-ionicon name="trash-outline" [size]="20" color="#fff" />
+                Delete
+              </button>
+              <div
+                class="swipe-surface"
+                appSwipeable
+                [appSwipeDirections]="['left']"
+                (swipeAction)="onSwipeAction($event, item.habit)"
+              >
+                <app-habit-row
+                  [habit]="item.habit"
+                  (rowPressed)="openHabit(item.habit.id)"
+                  (primaryPressed)="onPrimary(item.habit)"
+                  (pinPressed)="onPin(item.habit)"
+                />
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  } @else if (!loading()) {
+    <div class="empty-wrap">
+      <span class="empty-icon">
+        <app-ionicon name="leaf-outline" [size]="36" color="var(--color-text-muted)" />
+      </span>
+      <h3 class="empty-title">No habits yet</h3>
+      <p class="empty-body">
+        Tap the + button to create your first habit and start building streaks.
+      </p>
+      <div class="empty-actions">
+        <button
+          type="button"
+          class="note-save"
+          style="background-color: var(--color-tint)"
+          (click)="goToNew()"
+        >
+          Create first habit
+        </button>
+        <button
+          type="button"
+          class="note-save"
+          style="background-color: var(--color-surface-alt); color: var(--color-text); border: 1px solid var(--color-border)"
+          (click)="goToTemplates()"
+        >
+          Browse Templates
+        </button>
+      </div>
+    </div>
+  }
+</section>
+
+<!-- ── Context menu ─────────────────────────────────────────────── -->
+<app-context-menu
+  [visible]="menuHabit() !== null"
+  [items]="menuItems()"
+  [title]="menuHabit()?.name"
+  (closed)="closeContextMenu()"
+  (itemPicked)="onMenuPick($event)"
+/>
+
+<!-- ── Note sheet ───────────────────────────────────────────────── -->
+<app-sheet [visible]="noteSheet() !== null" (closed)="closeNoteSheet()">
+  <div class="note-header">
+    <app-ionicon name="journal-outline" [size]="20" color="var(--color-tint)" />
+    <h3 class="note-title">Add a note (optional)</h3>
+  </div>
+  @if (noteSheet(); as s) {
+    <p class="note-sub">{{ noteHabitName() }} · {{ s.date }}</p>
+  }
+  <textarea
+    class="note-input"
+    appAutofocus
+    [appAutofocusDelay]="200"
+    placeholder="How did it go? Any thoughts…"
+    [value]="noteText()"
+    (input)="onNoteInput($event)"
+  ></textarea>
+  <div class="note-actions">
+    <button type="button" class="note-save" (click)="saveNote()">Save</button>
+    <button type="button" class="note-skip" (click)="skipNote()">Skip</button>
+  </div>
+</app-sheet>
+
+<!-- ── Permission denial guidance ──────────────────────────────── -->
+<app-confirmation
+  [visible]="showPermGuide()"
+  title="Enable notifications"
+  message="Notifications are blocked by your browser. Open Site Settings → Notifications and switch Habitly to Allow, then return here."
+  icon="notifications-off-outline"
+  iconColor="var(--color-danger)"
+  confirmLabel="Got it"
+  cancelLabel="Close"
+  (closed)="dismissPermGuide()"
+  (confirmed)="dismissPermGuide()"
+/>

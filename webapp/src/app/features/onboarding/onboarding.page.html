@@ -1,0 +1,161 @@
+<section class="page no-tab-bar" [style.background-color]="currentPalette().bg">
+  @if (!isLast()) {
+    <button type="button" class="skip" (click)="finish()" aria-label="Skip onboarding">Skip</button>
+  }
+
+  <!-- Horizontal scroll-snap pager -->
+  <div class="scroller" #scrollEl (scroll)="onScroll()">
+    @for (sl of slides; track sl.id) {
+      <div class="slide" [style.background-color]="paletteFor(sl.id).bg">
+        <div class="ring ring-outer" [style.border-color]="paletteFor(sl.id).ring"></div>
+        <div class="ring ring-inner" [style.border-color]="paletteFor(sl.id).ring"></div>
+
+        <div class="main-icon" [style.background-color]="paletteFor(sl.id).iconBg">
+          <app-ionicon [name]="sl.icon" [size]="52" color="#fff" />
+        </div>
+
+        <div class="slide-content">
+          @switch (sl.id) {
+            @case ('notify') {
+              @if (permStatus() === 'granted') {
+                <div class="status-card status-success">
+                  <app-ionicon name="checkmark-circle" [size]="24" color="#16A34A" />
+                  <span>Reminders enabled</span>
+                </div>
+              } @else if (permStatus() === 'denied') {
+                <div class="status-card status-muted">
+                  <app-ionicon name="information-circle" [size]="22" color="#64748B" />
+                  <span>You can enable later in Settings</span>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  class="allow-btn"
+                  [style.background-color]="paletteFor('notify').iconBg"
+                  [disabled]="permStatus() === 'requesting'"
+                  (click)="allowNotifications()"
+                >
+                  <app-ionicon name="notifications" [size]="18" color="#fff" />
+                  <span>{{ permStatus() === 'requesting' ? 'Requesting…' : 'Allow Notifications' }}</span>
+                </button>
+              }
+            }
+            @case ('accent') {
+              <div class="accent-row">
+                @for (p of freeAccents; track p.id) {
+                  <button
+                    type="button"
+                    class="accent-btn"
+                    [attr.aria-label]="p.label + ' accent'"
+                    (click)="pickAccent(p.id)"
+                  >
+                    <span
+                      class="accent-disk"
+                      [class.active]="isActiveAccent(p.id)"
+                      [style.background-color]="p.tint"
+                    >
+                      @if (isActiveAccent(p.id)) {
+                        <app-ionicon name="checkmark" [size]="22" color="#fff" />
+                      }
+                    </span>
+                    <span class="accent-label">{{ p.label }}</span>
+                  </button>
+                }
+              </div>
+            }
+            @case ('templates') {
+              <div class="templates">
+                @for (b of templates; track b.id; let i = $index) {
+                  <div class="tpl-card" [style.opacity]="i === 0 ? 1 : (1 - i * 0.15)">
+                    <div class="tpl-icon" [style.background-color]="b.color + '22'">
+                      <app-ionicon [name]="b.icon" [size]="18" [color]="b.color" />
+                    </div>
+                    <div class="tpl-text">
+                      <span class="tpl-name">{{ b.label }}</span>
+                      <span class="tpl-desc">{{ b.description }}</span>
+                    </div>
+                  </div>
+                }
+                <button
+                  type="button"
+                  class="browse-btn"
+                  [style.background-color]="paletteFor('templates').iconBg"
+                  (click)="browseTemplates()"
+                >
+                  <app-ionicon name="grid" [size]="16" color="#fff" />
+                  <span>Browse All Templates</span>
+                </button>
+              </div>
+            }
+            @case ('first') {
+              <div class="first-grid">
+                @for (q of quickHabits; track q.name) {
+                  <button
+                    type="button"
+                    class="first-chip"
+                    [class.added]="isAdded(q)"
+                    [disabled]="isAdded(q)"
+                    [attr.aria-label]="isAdded(q) ? q.name + ' added' : 'Add ' + q.name"
+                    (click)="quickAdd(q)"
+                  >
+                    <span class="chip-icon" [style.background-color]="isAdded(q) ? '#fff3' : q.color">
+                      <app-ionicon
+                        [name]="isAdded(q) ? 'checkmark' : q.icon"
+                        [size]="16"
+                        color="#fff"
+                      />
+                    </span>
+                    <span class="chip-text">{{ q.name }}</span>
+                  </button>
+                }
+              </div>
+            }
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Bottom sheet -->
+  <div class="bottom-sheet">
+    <div class="bottom-content">
+      <div class="dots" aria-hidden="true">
+        @for (sl of slides; track sl.id; let i = $index) {
+          <span
+            class="dot"
+            [class.active]="i === current()"
+            [style.background-color]="i === current() ? currentPalette().iconBg : 'var(--color-border)'"
+          ></span>
+        }
+      </div>
+
+      <h2 class="title">{{ currentSlide().title }}</h2>
+      <p class="subtitle">{{ currentSlide().subtitle }}</p>
+
+      <div class="btn-row">
+        @if (!isFirst()) {
+          <button
+            type="button"
+            class="back-btn"
+            aria-label="Previous slide"
+            (click)="go(current() - 1)"
+          >
+            <app-ionicon name="arrow-back" [size]="20" color="var(--color-text-secondary)" />
+          </button>
+        }
+        <button
+          type="button"
+          class="next-btn"
+          [style.background-color]="currentPalette().iconBg"
+          [attr.aria-label]="isLast() ? 'Finish onboarding' : 'Next slide'"
+          (click)="isLast() ? finish() : go(current() + 1)"
+        >
+          <span>{{ nextLabel() }}</span>
+          @if (!isLast()) {
+            <app-ionicon name="arrow-forward" [size]="18" color="#fff" />
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+</section>

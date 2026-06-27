@@ -1,0 +1,43 @@
+:host {
+  display: block;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 56px 0;
+  gap: 10px;
+  text-align: center;
+}
+
+.icon-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
+  background-color: var(--color-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.body {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-muted);
+  padding: 0 24px;
+  max-width: 360px;
+  margin: 0;
+}
+
+.primary {
+  margin-top: 6px;
+}

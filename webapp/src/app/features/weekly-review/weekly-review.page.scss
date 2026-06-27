@@ -1,0 +1,294 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 8px;
+}
+
+.header-text {
+  text-align: center;
+  flex: 1;
+}
+
+.icon-spacer { width: 38px; height: 38px; }
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  background-color: var(--color-surface-alt);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 2px 0 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  padding-bottom: 48px;
+}
+
+/* ── Score card ─────────────────────────────────────────────── */
+.score-card {
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.score-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.score-value {
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 54px;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--color-border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 6px;
+  border-radius: 3px;
+  transition: width var(--dur-normal) var(--ease-fast);
+}
+
+.score-caption {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* ── Highlights row ─────────────────────────────────────────── */
+.highlight-row {
+  display: flex;
+  gap: 10px;
+}
+
+.highlight-card {
+  flex: 1;
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highlight-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.highlight-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.highlight-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.highlight-rate {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ── Section label ─────────────────────────────────────────── */
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 4px 0 0;
+}
+
+/* ── Habit list ─────────────────────────────────────────── */
+.list {
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.row-border {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.row-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.mini-track {
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--color-border);
+  overflow: hidden;
+}
+
+.mini-fill {
+  height: 4px;
+  border-radius: 2px;
+  transition: width var(--dur-normal) var(--ease-fast);
+}
+
+.row-pct {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Message card ─────────────────────────────────────────── */
+.message-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 12px;
+  border: 1px solid;
+  padding: 14px;
+}
+
+.message-text {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+/* ── CTA button ─────────────────────────────────────────── */
+.cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--color-tint);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+/* ── Empty state ─────────────────────────────────────────── */
+.empty-card {
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 10px;
+}
+
+.empty-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.empty-body {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 19px;
+  margin: 0;
+}
+
+.empty-btn {
+  background-color: var(--color-tint);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+  cursor: pointer;
+}

@@ -1,0 +1,279 @@
+@if (loading() || profile() === null || levelInfo() === null) {
+  <section class="page">
+    <div class="loading">Loading…</div>
+  </section>
+} @else {
+  <section class="page">
+    <!-- ── Header ──────────────────────────────────────────────────── -->
+    <header class="header-row">
+      <h1 class="heading">Profile</h1>
+      <button type="button" class="coin-pill" (click)="goToShop()">
+        <app-ionicon name="cash" [size]="14" color="#F59E0B" />
+        <span class="coin-text">{{ profile()!.coins ?? 0 }}</span>
+        <app-ionicon name="chevron-forward" [size]="12" color="#F59E0B" />
+      </button>
+    </header>
+
+    <!-- ── Quick action row ────────────────────────────────────────── -->
+    <div class="action-row">
+      <button type="button" class="action-btn" (click)="goToInsights()">
+        <app-ionicon name="analytics-outline" [size]="18" color="#8B5CF6" />
+        <span class="action-label">Insights</span>
+      </button>
+      <button type="button" class="action-btn" (click)="goToJournal()">
+        @if (journalIcon(); as emoji) {
+          <span class="emoji-icon">{{ emoji }}</span>
+        } @else {
+          <app-ionicon name="journal-outline" [size]="18" color="#10B981" />
+        }
+        <span class="action-label">Journal</span>
+      </button>
+      <button type="button" class="action-btn" (click)="goToYearInReview()">
+        <app-ionicon name="trophy-outline" [size]="18" color="#F59E0B" />
+        <span class="action-label">Year</span>
+      </button>
+    </div>
+
+    <!-- ── Daily quests ────────────────────────────────────────────── -->
+    @if (profile()!.dailyQuests && profile()!.dailyQuests!.length > 0) {
+      <div class="section-label">Daily Quests</div>
+      <div class="quests-card">
+        @for (q of profile()!.dailyQuests!; track q.id; let i = $index) {
+          <div class="quest-row" [class.with-border]="i > 0">
+            <span
+              class="quest-icon"
+              [style.background-color]="
+                q.completed ? 'var(--color-done-light)' : 'var(--color-surface-alt)'
+              "
+            >
+              <app-ionicon
+                [name]="q.icon"
+                [size]="18"
+                [color]="q.completed ? 'var(--color-done)' : 'var(--color-text-muted)'"
+              />
+            </span>
+            <div class="quest-body">
+              <div
+                class="quest-title"
+                [class.completed]="q.completed"
+                [style.color]="
+                  q.completed ? 'var(--color-text-muted)' : 'var(--color-text)'
+                "
+              >
+                {{ q.title }}
+              </div>
+              <div class="quest-desc">{{ q.description }}</div>
+            </div>
+            <div class="reward-stack">
+              <span
+                class="reward-pill"
+                [style.background-color]="
+                  q.completed ? 'var(--color-done-light)' : '#F59E0B22'
+                "
+                [style.color]="q.completed ? 'var(--color-done)' : '#F59E0B'"
+              >
+                <app-ionicon
+                  name="cash"
+                  [size]="10"
+                  [color]="q.completed ? 'var(--color-done)' : '#F59E0B'"
+                />
+                <span>+{{ q.coinReward }}</span>
+              </span>
+              <span
+                class="reward-pill"
+                [style.background-color]="
+                  q.completed ? 'var(--color-done-light)' : 'var(--color-surface-alt)'
+                "
+                [style.color]="
+                  q.completed ? 'var(--color-done)' : 'var(--color-text-muted)'
+                "
+              >
+                <app-ionicon
+                  name="star"
+                  [size]="10"
+                  [color]="q.completed ? 'var(--color-done)' : 'var(--color-text-muted)'"
+                />
+                <span>+{{ q.xpReward }}</span>
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Hero Level card ─────────────────────────────────────────── -->
+    <div class="hero-card">
+      <span class="hero-accent" [style.background-color]="levelInfo()!.current.color"></span>
+
+      <div class="hero-body">
+        <div class="level-badge" [style.background-color]="levelInfo()!.current.color">
+          <span class="level-num">{{ levelInfo()!.current.level }}</span>
+        </div>
+        <div class="hero-text">
+          <div class="level-title" [style.color]="levelInfo()!.current.color">
+            {{ levelInfo()!.current.title }}
+          </div>
+          <div class="xp-total">{{ xpDisplay() }} XP</div>
+        </div>
+      </div>
+
+      <div class="xp-track" [style.background-color]="levelInfo()!.current.color + '28'">
+        <div
+          class="xp-fill"
+          [style.background-color]="levelInfo()!.current.color"
+          [style.width.%]="progressPct()"
+        ></div>
+      </div>
+
+      <div class="xp-hint">
+        @if (levelInfo()!.current.maxXP === -1) {
+          Max level reached — legendary status!
+        } @else {
+          {{ xpToNext() }} XP to {{ nextLevelName() }}
+        }
+      </div>
+
+      <div class="level-ladder">
+        @for (l of levels; track l.level) {
+          <span
+            class="ladder-dot"
+            [style.background-color]="
+              profile()!.xp >= l.minXP ? l.color : 'var(--color-border)'
+            "
+            [style.transform]="
+              l.level === levelInfo()!.current.level ? 'scale(1.3)' : 'scale(1)'
+            "
+          ></span>
+        }
+      </div>
+      <div class="ladder-labels">
+        @for (l of levels; track l.level) {
+          <span
+            class="ladder-label"
+            [class.current]="l.level === levelInfo()!.current.level"
+            [style.color]="
+              l.level === levelInfo()!.current.level
+                ? levelInfo()!.current.color
+                : 'var(--color-text-muted)'
+            "
+          >
+            {{ firstWord(l.title) }}
+          </span>
+        }
+      </div>
+    </div>
+
+    <!-- ── Stats row ───────────────────────────────────────────────── -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-icon" style="background-color: var(--color-tint-light)">
+          <app-ionicon name="checkmark-done-outline" [size]="18" color="var(--color-tint)" />
+        </span>
+        <span class="stat-value">{{ profile()!.totalCompletions }}</span>
+        <span class="stat-label">Completions</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon" style="background-color: var(--color-streak-light)">
+          <app-ionicon name="flash-outline" [size]="18" color="var(--color-streak)" />
+        </span>
+        <span class="stat-value">{{ activeHabits().length }}</span>
+        <span class="stat-label">Active habits</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon" style="background-color: #F59E0B22">
+          <app-ionicon name="trophy-outline" [size]="18" color="#F59E0B" />
+        </span>
+        <span class="stat-value">
+          {{ unlockedCount() }}/{{ profile()!.achievements.length }}
+        </span>
+        <span class="stat-label">Badges</span>
+      </div>
+    </div>
+
+    <!-- ── Achievements grid ───────────────────────────────────────── -->
+    <div class="section-label">Achievements</div>
+    <div class="ach-grid">
+      @for (ach of visibleAchievements(); track ach.id) {
+        <div
+          class="ach-card"
+          [class.locked]="ach.unlockedAt === null"
+          [style.border-color]="
+            ach.unlockedAt !== null ? ach.color + '55' : 'var(--color-border)'
+          "
+        >
+          <span class="ach-icon-wrap" [style.background-color]="ach.color + '22'">
+            <app-ionicon
+              [name]="ach.icon"
+              [size]="22"
+              [color]="ach.unlockedAt !== null ? ach.color : 'var(--color-text-muted)'"
+            />
+            @if (ach.unlockedAt !== null) {
+              <span class="check-badge" [style.background-color]="ach.color">
+                <app-ionicon name="checkmark" [size]="8" color="#fff" />
+              </span>
+            }
+          </span>
+          <div
+            class="ach-name"
+            [style.color]="
+              ach.unlockedAt !== null ? 'var(--color-text)' : 'var(--color-text-muted)'
+            "
+          >
+            {{ ach.name }}
+          </div>
+          <div class="ach-desc">{{ ach.description }}</div>
+          <div class="ach-footer">
+            <span
+              class="xp-pill"
+              [style.background-color]="
+                ach.unlockedAt !== null ? ach.color + '22' : 'var(--color-surface-alt)'
+              "
+              [style.color]="
+                ach.unlockedAt !== null ? ach.color : 'var(--color-text-muted)'
+              "
+            >
+              <app-ionicon
+                name="star"
+                [size]="9"
+                [color]="ach.unlockedAt !== null ? ach.color : 'var(--color-text-muted)'"
+              />
+              {{ ach.xpReward }} XP
+            </span>
+            @if (ach.unlockedAt === null) {
+              <app-ionicon
+                name="lock-closed-outline"
+                [size]="12"
+                color="var(--color-text-muted)"
+              />
+            }
+          </div>
+        </div>
+      }
+    </div>
+    @if (lockedCount() > 0) {
+      <button
+        type="button"
+        class="expand-btn"
+        (click)="toggleAchievements()"
+        [attr.aria-label]="
+          achievementsExpanded()
+            ? 'Hide locked achievements'
+            : 'Show ' + lockedCount() + ' locked achievements'
+        "
+      >
+        <app-ionicon
+          [name]="achievementsExpanded() ? 'chevron-up' : 'lock-closed-outline'"
+          [size]="14"
+          color="var(--color-text-secondary)"
+        />
+        <span class="expand-label">
+          @if (achievementsExpanded()) {
+            Hide {{ lockedCount() }} locked
+          } @else {
+            {{ lockedCount() }} locked · tap to view
+          }
+        </span>
+      </button>
+    }
+  </section>
+}

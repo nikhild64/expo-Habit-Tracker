@@ -1,0 +1,100 @@
+<section class="page no-tab-bar">
+  <div class="body">
+    <div class="header">
+      <div class="logo">
+        <app-ionicon name="lock-closed" [size]="32" color="#fff" />
+      </div>
+      <h1 class="title">{{ title() }}</h1>
+      <p class="sub">{{ subtitle() }}</p>
+    </div>
+
+    <!-- Dots indicator -->
+    <div class="dots-row" role="presentation">
+      @for (i of dotIndices; track i) {
+        <span
+          class="dot"
+          [class.filled]="i < pin().length"
+          [class.error]="!!error()"
+        ></span>
+      }
+    </div>
+
+    @if (error()) {
+      <p class="error" aria-live="assertive">{{ error() }}</p>
+    }
+
+    <!-- Keypad -->
+    <div class="keypad" role="grid">
+      @for (row of keypad; track $index) {
+        <div class="kp-row" role="row">
+          @for (key of row; track key) {
+            @if (key === 'bio' && !bioKeyVisible()) {
+              <div class="kp-empty" aria-hidden="true"></div>
+            } @else {
+              <button
+                type="button"
+                class="kp-key"
+                [attr.aria-label]="key === 'back' ? 'Backspace' : key === 'bio' ? 'Use biometric' : 'Digit ' + key"
+                (click)="pressKey(key)"
+              >
+                @if (key === 'back') {
+                  <app-ionicon name="backspace-outline" [size]="24" color="var(--color-text-secondary)" />
+                } @else if (key === 'bio') {
+                  <app-ionicon name="finger-print" [size]="26" color="var(--color-tint)" />
+                } @else {
+                  <span class="kp-digit">{{ key }}</span>
+                }
+              </button>
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Setup-flow extras -->
+    @if (setupExtras()) {
+      <div class="extras">
+        <app-button
+          label="Change PIN"
+          variant="secondary"
+          icon="key-outline"
+          [fullWidth]="true"
+          (pressed)="changePin()"
+        />
+        <app-button
+          label="Disable App Lock"
+          variant="ghost"
+          icon="lock-open-outline"
+          [fullWidth]="true"
+          (pressed)="showDisableConfirm()"
+        />
+        @if (webauthnSupported()) {
+          <div class="bio-row">
+            <span class="bio-label">Use biometric</span>
+            <button
+              type="button"
+              class="bio-toggle"
+              [class.on]="prefs().biometricEnabled"
+              role="switch"
+              [attr.aria-checked]="prefs().biometricEnabled"
+              (click)="toggleBio()"
+            >
+              <span class="bio-knob"></span>
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <app-confirmation
+    [visible]="disableConfirm()"
+    title="Disable lock?"
+    message="Your data will no longer require a PIN to view."
+    confirmLabel="Disable"
+    icon="lock-open"
+    [destructive]="true"
+    (closed)="cancelDisable()"
+    (confirmed)="confirmDisable()"
+  />
+</section>

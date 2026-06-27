@@ -1,0 +1,399 @@
+/* Full-bleed page anchored at exactly one viewport. `dvh` (dynamic viewport
+ * height) is used instead of `vh` so iOS Safari's URL-bar collapse doesn't
+ * spill an extra band of content below the bottom sheet. `overflow: hidden`
+ * is what kills the vertical scroll the bug filed against — without it, tall
+ * widgets on slides 5 & 6 push the whole page past the viewport. */
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  /* Defensive: this page should always own the viewport even if the parent
+   * shell decides to nudge its bottom padding around in the future. */
+  padding-bottom: 0 !important;
+}
+
+.skip {
+  position: absolute;
+  top: max(env(safe-area-inset-top, 0), 16px);
+  right: 16px;
+  z-index: 10;
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5C5345;
+}
+
+/* ── Scroll-snap pager ──────────────────────────────────────── */
+/* `min-height: 0` is the magic that lets a `flex: 1` child shrink below its
+ * intrinsic content height — without it the scroller would always render
+ * tall enough to fit the largest slide's content. */
+.scroller {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar { display: none; }
+
+.slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 28px 20px;
+  overflow: hidden;
+}
+
+.ring {
+  position: absolute;
+  border-radius: 999px;
+  border-width: 1.5px;
+  border-style: solid;
+  pointer-events: none;
+}
+
+.ring-outer {
+  width: 260px;
+  height: 260px;
+  opacity: 0.4;
+  top: 80px;
+}
+
+.ring-inner {
+  width: 180px;
+  height: 180px;
+  opacity: 0.6;
+  top: 120px;
+}
+
+.main-icon {
+  flex: none;
+  width: 100px;
+  height: 100px;
+  border-radius: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1;
+}
+
+/* `flex: 1 1 0` + `min-height: 0` lets this region absorb whatever vertical
+ * space the icon leaves behind, and lets its own children (templates list,
+ * chip grid) scroll internally on short screens (e.g. landscape phones)
+ * without dragging the surrounding chrome — icon, dots, title, buttons —
+ * along for the ride. */
+.slide-content {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.slide-content::-webkit-scrollbar { display: none; }
+
+/* ── NotifySlide ───────────────────────────────────────────── */
+.allow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border: none;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.allow-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.status-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-success {
+  border-color: #16A34A;
+  background-color: #F0FDF4;
+  color: #15803D;
+}
+
+.status-muted {
+  border-color: #E5E7EB;
+  background-color: #ffffff;
+  color: #64748B;
+}
+
+/* ── AccentSlide ───────────────────────────────────────────── */
+.accent-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.accent-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.accent-disk {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18);
+  border: 0 solid #0F172A;
+  transition: border-width var(--dur-fast) var(--ease-fast);
+}
+
+.accent-disk.active {
+  border-width: 4px;
+}
+
+.accent-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+/* ── TemplatesPreview ──────────────────────────────────────── */
+.templates {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.tpl-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #ffffff;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.tpl-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tpl-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.tpl-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.tpl-desc {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+/* ── FirstHabitGrid ────────────────────────────────────────── */
+.first-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.first-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  border: 1.5px solid #E5E7EB;
+  background-color: #fff;
+  padding: 9px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.first-chip.added {
+  border-color: #16A34A;
+  background-color: #16A34A;
+  cursor: default;
+}
+
+.chip-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chip-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.first-chip.added .chip-text { color: #fff; }
+
+/* ── Bottom sheet ───────────────────────────────────────────── */
+/* `flex: none` so the sheet keeps its natural height inside the page's
+ * flex-column — the scroller above gets whatever vertical space is left. */
+.bottom-sheet {
+  flex: none;
+  background-color: var(--color-surface);
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-content {
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  transition: width var(--dur-fast) var(--ease-fast),
+              background-color var(--dur-fast) var(--ease-fast);
+}
+
+.dot.active {
+  width: 24px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 34px;
+  color: var(--color-text);
+  margin: 0;
+  white-space: pre-line;
+}
+
+.subtitle {
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--color-text-secondary);
+  margin: -2px 0 0;
+}
+
+.btn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.back-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background-color: var(--color-surface-alt);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
+.next-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}

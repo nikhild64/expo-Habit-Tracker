@@ -1,0 +1,150 @@
+<section class="page">
+  <header class="page-header">
+    <h1 class="heading">Progress</h1>
+    <button type="button" class="refresh-btn" (click)="onRefresh()" aria-label="Refresh">
+      <app-ionicon name="refresh-outline" [size]="14" />
+      Refresh
+    </button>
+  </header>
+
+  <!-- ── Summary cards ──────────────────────────────────────────────── -->
+  @if (totalHabits() > 0) {
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="summary-value">{{ totalHabits() }}</div>
+        <div class="summary-label">Habits</div>
+      </div>
+      <div class="summary-card summary-card-mid">
+        <div class="summary-value">{{ overallBest() }}</div>
+        <div class="summary-label">Best Streak</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-value">{{ doneToday() }}/{{ totalHabits() }}</div>
+        <div class="summary-label">Done Today</div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Heatmap or empty state ─────────────────────────────────────── -->
+  @if (loading() || totalHabits() === 0) {
+    @if (!loading()) {
+      <div class="empty-card">
+        <app-ionicon name="stats-chart-outline" [size]="36" color="var(--color-text-muted)" />
+        <h3 class="empty-title">No habits yet</h3>
+        <p class="empty-body">Create habits to see your streak calendar here.</p>
+        <button type="button" class="empty-btn" (click)="goToNew()">Create first habit</button>
+      </div>
+    }
+  } @else {
+    <div class="section-label">Monthly Overview</div>
+    <app-month-heatmap
+      [completionMap]="completionMap()"
+      [totalHabits]="totalHabits()"
+      [habits]="visibleHabits()"
+      [todayKey]="todayKey"
+      (dayPressed)="onCellPress($event)"
+    />
+
+    <!-- ── Category breakdown ───────────────────────────────────────── -->
+    @if (categoryBreakdown().length > 1) {
+      <div class="section-label">By Category</div>
+      <div class="cat-card">
+        @for (entry of categoryBreakdown(); track entry.category) {
+          <div class="cat-row">
+            <span
+              class="cat-dot"
+              [style.background-color]="getCategoryMeta(entry.category).color"
+            ></span>
+            <span class="cat-label">{{ getCategoryMeta(entry.category).label }}</span>
+            <span class="cat-track">
+              <span
+                class="cat-fill"
+                [style.width.%]="entry.rate * 100"
+                [style.background-color]="getCategoryMeta(entry.category).color"
+              ></span>
+            </span>
+            <span class="cat-pct">{{ pct(entry.rate) }}%</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Per-habit list ───────────────────────────────────────────── -->
+    <div class="section-label">All Habits</div>
+    <div class="habit-list">
+      @for (h of visibleHabits(); track h.id) {
+        <app-habit-streak-row [habit]="h" (pressed)="goToHabit(h.id)" />
+      }
+    </div>
+
+    <div class="footer-note">
+      Tracking {{ daysSinceEarliest() }}
+      {{ daysSinceEarliest() === 1 ? 'day' : 'days' }} ·
+      {{ totalStreakDays() }} total streak days
+    </div>
+  }
+</section>
+
+<!-- ── Day detail sheet ─────────────────────────────────────────── -->
+<app-sheet [visible]="selectedDay() !== null" (closed)="closeDayDetail()">
+  @if (selectedDayDetail(); as d) {
+    <div class="sheet-header">
+      <div>
+        <h2 class="sheet-date">{{ d.date }}</h2>
+        <div class="sheet-weekday">{{ d.weekday }}</div>
+      </div>
+      <button
+        type="button"
+        class="sheet-close"
+        (click)="closeDayDetail()"
+        aria-label="Close"
+      >
+        <app-ionicon name="close" [size]="22" color="var(--color-text-muted)" />
+      </button>
+    </div>
+
+    @if (d.isFuture) {
+      <div class="sheet-empty">
+        <app-ionicon name="calendar-outline" [size]="32" color="var(--color-text-muted)" />
+        <div class="sheet-empty-text">This day hasn't happened yet</div>
+      </div>
+    } @else if (d.active.length === 0) {
+      <div class="sheet-empty">
+        <app-ionicon name="hourglass-outline" [size]="32" color="var(--color-text-muted)" />
+        <div class="sheet-empty-text">No habits were tracked yet</div>
+      </div>
+    } @else {
+      <div class="sheet-progress-row">
+        <span class="sheet-track">
+          <span
+            class="sheet-fill"
+            [style.width.%]="d.ratio * 100"
+            [style.background-color]="d.ratio === 1 ? 'var(--color-done)' : 'var(--color-tint)'"
+          ></span>
+        </span>
+        <span class="sheet-ratio">{{ d.done.length }} / {{ d.active.length }}</span>
+      </div>
+
+      <ul class="sheet-list">
+        @for (h of d.done; track h.id) {
+          <li class="sheet-habit-row">
+            <span class="sheet-habit-icon" [style.background-color]="h.color">
+              <app-ionicon [name]="h.icon" [size]="15" color="#fff" />
+            </span>
+            <span class="sheet-habit-name">{{ h.name }}</span>
+            <app-ionicon name="checkmark-circle" [size]="20" color="var(--color-done)" />
+          </li>
+        }
+        @for (h of d.missed; track h.id) {
+          <li class="sheet-habit-row missed">
+            <span class="sheet-habit-icon" [style.background-color]="'var(--color-surface-alt)'">
+              <app-ionicon [name]="h.icon" [size]="15" color="var(--color-text-muted)" />
+            </span>
+            <span class="sheet-habit-name muted">{{ h.name }}</span>
+            <app-ionicon name="remove-circle-outline" [size]="20" color="var(--color-border)" />
+          </li>
+        }
+      </ul>
+    }
+  }
+</app-sheet>

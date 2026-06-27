@@ -1,0 +1,187 @@
+/* The Lock page is a sibling of <app-shell>, so the tab bar isn't rendered.
+ * The `.no-tab-bar` class also nukes the bottom padding the shell normally
+ * reserves for the tab bar so the keypad sits centred on a tall PIN screen.
+ *
+ * Anchor at exactly one dynamic viewport and clip overflow so the page
+ * itself never scrolls — the inner `.body` is what shrinks/scrolls when the
+ * full keypad + setup-extras don't fit (e.g. landscape phones). */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-bg);
+}
+
+/* `min-height: 0` lets this flex child shrink below its intrinsic content
+ * height; `overflow-y: auto` then scrolls the keypad/extras internally on
+ * very short viewports without disturbing the page chrome. */
+.body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 24px 32px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.body::-webkit-scrollbar { display: none; }
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background-color: var(--color-tint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sub {
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ── Dots row ────────────────────────────────────────────────── */
+.dots-row {
+  display: flex;
+  gap: 18px;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  border: 2px solid var(--color-border);
+  background: transparent;
+  transition: background-color var(--dur-fast) var(--ease-fast),
+              border-color var(--dur-fast) var(--ease-fast);
+}
+
+.dot.filled {
+  background-color: var(--color-tint);
+  border-color: var(--color-tint);
+}
+
+.dot.error {
+  border-color: var(--color-danger);
+}
+
+.error {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-danger);
+  margin: 6px 0 0;
+}
+
+/* ── Keypad ────────────────────────────────────────────────── */
+.keypad {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.kp-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.kp-key {
+  width: 76px;
+  height: 76px;
+  border-radius: 38px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background-color var(--dur-fast) var(--ease-fast);
+}
+
+.kp-key:active {
+  background-color: var(--color-surface-hover);
+}
+
+.kp-empty {
+  width: 76px;
+  height: 76px;
+}
+
+.kp-digit {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+/* ── Setup-flow extras ────────────────────────────────────────── */
+.extras {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  align-self: stretch;
+}
+
+.bio-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-top: 8px;
+}
+
+.bio-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.bio-toggle {
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  padding: 2px;
+  background-color: var(--color-border);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  transition: background-color var(--dur-fast) var(--ease-fast),
+              justify-content 0s;
+}
+
+.bio-toggle.on {
+  background-color: var(--color-tint);
+  justify-content: flex-end;
+}
+
+.bio-knob {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: #fff;
+}

@@ -1,0 +1,67 @@
+<div class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" aria-label="Close" (click)="goBack()">
+      <app-ionicon name="close" [size]="22" />
+    </button>
+    <div class="header-center">
+      <h1 class="title">Journal</h1>
+      <p class="subtitle">{{ dateLabel() }}</p>
+    </div>
+    <button type="button" class="save-btn" (click)="save()">Save</button>
+  </header>
+
+  <div class="content">
+    <app-card>
+      <h2 class="section-label">Morning</h2>
+      <app-mood-picker
+        label="Mood"
+        [labels]="moodLabels"
+        [value]="morningMood()"
+        (changed)="morningMood.set($event)"
+      />
+      <app-mood-picker
+        label="Energy"
+        [labels]="energyLabels"
+        [value]="morningEnergy()"
+        (changed)="morningEnergy.set($event)"
+      />
+    </app-card>
+
+    <app-card>
+      <h2 class="section-label">Evening</h2>
+      <app-mood-picker
+        label="Mood"
+        [labels]="moodLabels"
+        [value]="eveningMood()"
+        (changed)="eveningMood.set($event)"
+      />
+      <app-mood-picker
+        label="Energy"
+        [labels]="energyLabels"
+        [value]="eveningEnergy()"
+        (changed)="eveningEnergy.set($event)"
+      />
+    </app-card>
+
+    <h2 class="section-label standalone">Reflection</h2>
+    <app-card>
+      <textarea
+        class="reflection-input"
+        [value]="reflection()"
+        (input)="onReflectionInput($event)"
+        placeholder="What went well? What did you struggle with? Anything to remember…"
+        [attr.autofocus]="autoFocus() ? '' : null"
+      ></textarea>
+    </app-card>
+
+    <div class="spacer"></div>
+    <div class="save-row">
+      <app-button
+        label="Save Journal"
+        icon="save-outline"
+        [fullWidth]="true"
+        (pressed)="save()"
+      />
+    </div>
+  </div>
+</div>

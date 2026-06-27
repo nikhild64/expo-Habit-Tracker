@@ -1,0 +1,454 @@
+<section class="page">
+  <h1 class="heading">Settings</h1>
+
+  <!-- ── Appearance ───────────────────────────────────────────────── -->
+  <div class="section-label">Appearance</div>
+  <div class="card">
+    <div class="row with-border">
+      <span
+        class="row-icon"
+        [style.background-color]="isDark() ? '#6366F126' : '#F4F4F5'"
+      >
+        <app-ionicon
+          [name]="isDark() ? 'moon' : 'sunny'"
+          [size]="16"
+          [color]="isDark() ? 'var(--color-tint)' : '#CA8A04'"
+        />
+      </span>
+      <span class="row-label">Dark Mode</span>
+      <button
+        type="button"
+        class="toggle"
+        role="switch"
+        [attr.aria-checked]="isDark()"
+        [class.on]="isDark()"
+        (click)="toggleTheme()"
+        aria-label="Toggle dark mode"
+      >
+        <span class="thumb"></span>
+      </button>
+    </div>
+
+    <div class="row">
+      <span class="row-icon" style="background-color: var(--color-tint-light)">
+        <app-ionicon name="color-palette-outline" [size]="16" color="var(--color-tint)" />
+      </span>
+      <div class="accent-block">
+        <span class="row-label">Accent Color</span>
+        <div class="accent-row">
+          @for (preset of accentPresets; track preset.id) {
+            <button
+              type="button"
+              class="accent-disk"
+              [style.background-color]="preset.tint"
+              [style.opacity]="accentDisplay(preset.id).locked ? 0.45 : 1"
+              [class.active]="accentDisplay(preset.id).active"
+              (click)="onAccentPress(preset.id)"
+              [attr.aria-label]="
+                accentDisplay(preset.id).locked
+                  ? preset.label + ' (locked)'
+                  : preset.label + (accentDisplay(preset.id).active ? ' (active)' : '')
+              "
+            >
+              @if (accentDisplay(preset.id).locked) {
+                <app-ionicon name="lock-closed" [size]="14" color="#fff" />
+              } @else if (accentDisplay(preset.id).active) {
+                <app-ionicon name="checkmark" [size]="16" color="#fff" />
+              }
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Insights & Reviews ───────────────────────────────────────── -->
+  <div class="section-label">Insights &amp; Reviews</div>
+  <div class="card">
+    <button type="button" class="row with-border" (click)="navigate('/insights')">
+      <span class="row-icon" style="background-color: #8B5CF622">
+        <app-ionicon name="analytics-outline" [size]="16" color="#8B5CF6" />
+      </span>
+      <span class="row-label">Habit Insights</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+    <button type="button" class="row with-border" (click)="navigate('/weekly-review')">
+      <span class="row-icon" style="background-color: #3B82F622">
+        <app-ionicon name="calendar-outline" [size]="16" color="#3B82F6" />
+      </span>
+      <span class="row-label">Weekly Review</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+    <button type="button" class="row" (click)="navigate('/year-in-review')">
+      <span class="row-icon" style="background-color: #F59E0B22">
+        <app-ionicon name="trophy-outline" [size]="16" color="#F59E0B" />
+      </span>
+      <span class="row-label">Year in Review</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+  </div>
+
+  <!-- ── Privacy ──────────────────────────────────────────────────── -->
+  <div class="section-label">Privacy</div>
+  <div class="card">
+    <button
+      type="button"
+      class="row"
+      (click)="navigate('/lock', { setup: 1 })"
+    >
+      <span class="row-icon" style="background-color: #EF444422">
+        <app-ionicon name="lock-closed-outline" [size]="16" color="#EF4444" />
+      </span>
+      <div class="row-block">
+        <span class="row-label">App Lock</span>
+        <span class="row-sub">Protect with PIN + biometric</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+  </div>
+
+  <!-- ── Notifications ────────────────────────────────────────────── -->
+  <div class="section-label">Notifications</div>
+  <div class="card">
+    <div class="row with-border">
+      <span class="row-icon" [style.background-color]="permColor() + '22'">
+        <app-ionicon [name]="permIcon()" [size]="16" [color]="permColor()" />
+      </span>
+      <span class="row-label" [style.color]="permColor()">Permission</span>
+      <span class="row-value">{{ permLabel() }}</span>
+    </div>
+    @if (denied()) {
+      <button type="button" class="row" (click)="openPermGuide()">
+        <span class="row-icon">
+          <app-ionicon name="open-outline" [size]="16" color="var(--color-text-secondary)" />
+        </span>
+        <span class="row-label">Open System Settings</span>
+        <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+      </button>
+    }
+    @if (undetermined()) {
+      <button type="button" class="row" (click)="requestNotifications()">
+        <span class="row-icon">
+          <app-ionicon
+            name="checkmark-circle-outline"
+            [size]="16"
+            color="var(--color-text-secondary)"
+          />
+        </span>
+        <span class="row-label">Allow Notifications</span>
+        <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+      </button>
+    }
+  </div>
+
+  <!-- ── Quiet Hours ──────────────────────────────────────────────── -->
+  <div class="section-label">Quiet Hours</div>
+  <div class="card">
+    <div class="row with-border">
+      <span class="row-icon">
+        <app-ionicon name="moon-outline" [size]="16" color="var(--color-text-secondary)" />
+      </span>
+      <span class="row-label">Do Not Disturb</span>
+      <button
+        type="button"
+        class="toggle"
+        role="switch"
+        [attr.aria-checked]="qh().enabled"
+        [class.on]="qh().enabled"
+        (click)="toggleDnd()"
+        aria-label="Toggle Do Not Disturb"
+      >
+        <span class="thumb"></span>
+      </button>
+    </div>
+    <div class="row with-border">
+      <span class="row-icon">
+        <app-ionicon name="time-outline" [size]="16" color="var(--color-text-secondary)" />
+      </span>
+      <span class="row-label">Start</span>
+      <button
+        type="button"
+        class="time-pill"
+        [disabled]="!qh().enabled"
+        (click)="openTimePicker('start')"
+      >
+        <span [style.color]="qh().enabled ? 'var(--color-tint)' : 'var(--color-text-muted)'">
+          {{ startTimeLabel() }}
+        </span>
+        <app-ionicon
+          name="chevron-down"
+          [size]="12"
+          [color]="qh().enabled ? 'var(--color-tint)' : 'var(--color-text-muted)'"
+        />
+      </button>
+    </div>
+    <div class="row">
+      <span class="row-icon">
+        <app-ionicon name="sunny-outline" [size]="16" color="var(--color-text-secondary)" />
+      </span>
+      <span class="row-label">End</span>
+      <button
+        type="button"
+        class="time-pill"
+        [disabled]="!qh().enabled"
+        (click)="openTimePicker('end')"
+      >
+        <span [style.color]="qh().enabled ? 'var(--color-tint)' : 'var(--color-text-muted)'">
+          {{ endTimeLabel() }}
+        </span>
+        <app-ionicon
+          name="chevron-down"
+          [size]="12"
+          [color]="qh().enabled ? 'var(--color-tint)' : 'var(--color-text-muted)'"
+        />
+      </button>
+    </div>
+  </div>
+  @if (qh().enabled) {
+    <p class="hint">
+      Reminders and push notifications are silenced between
+      {{ startTimeLabel() }} and {{ endTimeLabel() }}.
+    </p>
+  }
+
+  <!-- ── Push Token (HIDDEN — easter egg) ─────────────────────────── -->
+  @if (showDevTools()) {
+    <div class="section-label">Push Token</div>
+    <div class="card">
+      <div class="token-area">
+        @if (subId()) {
+          <p class="token-hint">
+            Your device's push subscription ID. Used by the server to send you
+            notifications.
+          </p>
+          <div class="token-box">
+            <span class="token-text">{{ subId() }}</span>
+          </div>
+          <button type="button" class="copy-btn" (click)="copyToken()">
+            <app-ionicon name="copy-outline" [size]="15" color="var(--color-tint)" />
+            <span style="color: var(--color-tint); font-weight: 600;">Copy Token</span>
+          </button>
+        } @else {
+          <p class="muted">
+            {{ granted() ? 'Fetching…' : 'Grant notification permission first' }}
+          </p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── About ────────────────────────────────────────────────────── -->
+  <div class="section-label">About</div>
+  <div class="card">
+    <button type="button" class="row with-border" (click)="navigate('/about')">
+      <span class="row-icon" style="background-color: var(--color-tint-light)">
+        <app-ionicon name="information-circle-outline" [size]="16" color="var(--color-tint)" />
+      </span>
+      <span class="row-label">About Habitly</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+    <button type="button" class="row with-border" (click)="navigate('/privacy')">
+      <span class="row-icon" style="background-color: var(--color-tint-light)">
+        <app-ionicon name="shield-checkmark-outline" [size]="16" color="var(--color-tint)" />
+      </span>
+      <span class="row-label">Privacy Policy</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+    <button type="button" class="row" (click)="onVersionTap()">
+      <span class="row-icon">
+        <app-ionicon name="phone-portrait-outline" [size]="16" color="var(--color-text-secondary)" />
+      </span>
+      <span class="row-label">Version</span>
+      <span class="row-value" [class.hint-active]="!!versionTapHint()">
+        {{ versionText() }}
+      </span>
+    </button>
+  </div>
+
+  <!-- ── Developer Tools (HIDDEN — easter egg) ───────────────────── -->
+  @if (showDevTools()) {
+    <div class="section-label">Developer Tools</div>
+    <div class="card">
+      <button type="button" class="row with-border" (click)="confirmLoadDummy()">
+        <span class="row-icon" style="background-color: #F9731622">
+          <app-ionicon name="flask-outline" [size]="16" color="#F97316" />
+        </span>
+        <div class="row-block">
+          <span class="row-label">Load Dummy Data</span>
+          <span class="row-sub">5 habits · 5 months of streak history</span>
+        </div>
+        <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+      </button>
+      <button type="button" class="row" (click)="confirmClearAll()">
+        <span class="row-icon" style="background-color: var(--color-danger-light)">
+          <app-ionicon name="trash-bin-outline" [size]="16" color="var(--color-danger)" />
+        </span>
+        <div class="row-block">
+          <span class="row-label" style="color: var(--color-danger)">Clear All Habits</span>
+          <span class="row-sub">Reset to empty state</span>
+        </div>
+        <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+      </button>
+    </div>
+  }
+
+  <!-- ── Archived Habits (conditional) ───────────────────────────── -->
+  @if (archived().length > 0) {
+    <div class="section-label">Archived Habits</div>
+    <div class="card">
+      @for (h of archived(); track h.id; let i = $index; let last = $last) {
+        <div class="row" [class.with-border]="!last">
+          <span class="row-icon" [style.background-color]="h.color + '22'">
+            <app-ionicon [name]="h.icon" [size]="16" [color]="h.color" />
+          </span>
+          <span class="row-label" style="color: var(--color-text-secondary)">{{ h.name }}</span>
+          <button
+            type="button"
+            class="restore-btn"
+            (click)="restoreArchived(h.id)"
+          >
+            Restore
+          </button>
+          <button
+            type="button"
+            class="trash-btn"
+            (click)="confirmDeleteArchived(h.id, h.name)"
+            aria-label="Permanently delete"
+          >
+            <app-ionicon name="trash-outline" [size]="16" color="var(--color-danger)" />
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Data ─────────────────────────────────────────────────────── -->
+  <div class="section-label">Data</div>
+  <div class="card">
+    <button type="button" class="row with-border" (click)="exportCsv()" [disabled]="dataLoading() !== null">
+      <span class="row-icon" style="background-color: #22C55E22">
+        @if (dataLoading() === 'csv') {
+          <span class="spinner" style="border-color: #22C55E;"></span>
+        } @else {
+          <app-ionicon name="document-text-outline" [size]="16" color="#22C55E" />
+        }
+      </span>
+      <div class="row-block">
+        <span class="row-label">Export as CSV</span>
+        <span class="row-sub">Habit history — name, date, completion, notes</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+
+    <button type="button" class="row with-border" (click)="exportJson()" [disabled]="dataLoading() !== null">
+      <span class="row-icon" style="background-color: #6366F122">
+        @if (dataLoading() === 'json') {
+          <span class="spinner" style="border-color: var(--color-tint);"></span>
+        } @else {
+          <app-ionicon name="code-slash-outline" [size]="16" color="var(--color-tint)" />
+        }
+      </span>
+      <div class="row-block">
+        <span class="row-label">Export as JSON</span>
+        <span class="row-sub">Full backup — can be imported later</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+
+    <button type="button" class="row with-border" (click)="importHabits()" [disabled]="dataLoading() !== null">
+      <span class="row-icon" style="background-color: #F9731622">
+        @if (dataLoading() === 'import') {
+          <span class="spinner" style="border-color: #F97316;"></span>
+        } @else {
+          <app-ionicon name="cloud-upload-outline" [size]="16" color="#F97316" />
+        }
+      </span>
+      <div class="row-block">
+        <span class="row-label">Import Habits (JSON)</span>
+        <span class="row-sub">Restore habits from a previous backup</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+
+    <button type="button" class="row with-border" (click)="exportFullBackup()" [disabled]="dataLoading() !== null">
+      <span class="row-icon" style="background-color: #EC489922">
+        @if (dataLoading() === 'backup') {
+          <span class="spinner" style="border-color: #EC4899;"></span>
+        } @else {
+          <app-ionicon name="cloud-download-outline" [size]="16" color="#EC4899" />
+        }
+      </span>
+      <div class="row-block">
+        <span class="row-label">Full Backup</span>
+        <span class="row-sub">Habits + routines + profile + mood + theme</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+
+    <button type="button" class="row" (click)="confirmRestoreBackup()" [disabled]="dataLoading() !== null">
+      <span class="row-icon" style="background-color: #14B8A622">
+        @if (dataLoading() === 'restore') {
+          <span class="spinner" style="border-color: #14B8A6;"></span>
+        } @else {
+          <app-ionicon name="cloud-upload-outline" [size]="16" color="#14B8A6" />
+        }
+      </span>
+      <div class="row-block">
+        <span class="row-label">Restore Full Backup</span>
+        <span class="row-sub">Replace everything from a backup file</span>
+      </div>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+  </div>
+
+  <!-- ── Danger Zone ─────────────────────────────────────────────── -->
+  <div class="section-label">Danger Zone</div>
+  <button type="button" class="reset-btn" (click)="confirmResetApp()">
+    <app-ionicon name="trash-outline" [size]="18" color="var(--color-danger)" />
+    <div>
+      <div class="reset-title">Reset App</div>
+      <div class="reset-sub">Deletes all habits, streaks, and settings</div>
+    </div>
+  </button>
+</section>
+
+<!-- ── Clock face time picker sheet ───────────────────────────── -->
+<app-sheet [visible]="activePicker() !== null" (closed)="closeTimePicker()">
+  <div class="modal-header">
+    <span class="modal-title">
+      {{ activePicker() === 'start' ? 'START TIME' : 'END TIME' }}
+    </span>
+    <button type="button" class="modal-close" (click)="closeTimePicker()" aria-label="Close">
+      <app-ionicon name="close" [size]="20" color="var(--color-text-muted)" />
+    </button>
+  </div>
+
+  <div class="clock-wrap">
+    <app-clock-face
+      [hour24]="pickerHour()"
+      [minute]="pickerMinute()"
+      (hourChange)="onPickerHour($event)"
+      (minuteChange)="onPickerMinute($event)"
+    />
+  </div>
+
+  <button type="button" class="done-btn" (click)="confirmPicker()">
+    Confirm {{ pickerLabel() }}
+  </button>
+</app-sheet>
+
+<!-- ── Confirmation modal ─────────────────────────────────────── -->
+@if (confirmConfig(); as cfg) {
+  <app-confirmation
+    [visible]="true"
+    [title]="cfg.title"
+    [message]="cfg.message"
+    [icon]="cfg.icon"
+    [iconColor]="cfg.iconColor"
+    [confirmLabel]="cfg.confirmLabel"
+    [cancelLabel]="cfg.cancelLabel ?? 'Cancel'"
+    [destructive]="cfg.destructive ?? false"
+    (closed)="dismissConfirm()"
+    (confirmed)="onConfirmConfirmed()"
+  />
+}

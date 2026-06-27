@@ -1,0 +1,252 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 8px;
+}
+
+.icon-spacer { width: 38px; height: 38px; }
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  background-color: var(--color-surface-alt);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.header-text {
+  text-align: center;
+  flex: 1;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 2px 0 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  padding-bottom: 48px;
+}
+
+/* Overview */
+.overview-card {
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.overview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--color-border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 6px;
+  border-radius: 3px;
+  transition: width var(--dur-normal) var(--ease-fast);
+}
+
+.progress-pct {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* Section label */
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 4px 0 0;
+}
+
+/* List */
+.list {
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.missed-row {
+  cursor: pointer;
+}
+
+.row-border {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.icon-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-badge.faded { opacity: 0.5; }
+
+.row-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.row-name.muted { color: var(--color-text-secondary); }
+
+.streak-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.streak-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-streak);
+}
+
+.missed-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.streak-reset {
+  font-size: 12px;
+  color: var(--color-streak);
+  margin-top: 2px;
+}
+
+/* Risk callout */
+.risk-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background-color: var(--color-streak-light);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.risk-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-streak);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+/* CTA */
+.cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--color-tint);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+/* Empty */
+.empty-card {
+  background-color: var(--color-surface);
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 10px;
+}
+
+.empty-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.empty-body {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 19px;
+  margin: 0;
+}
+
+.empty-btn {
+  background-color: var(--color-tint);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 4px;
+  cursor: pointer;
+}

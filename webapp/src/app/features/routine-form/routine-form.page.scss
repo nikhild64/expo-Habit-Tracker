@@ -1,0 +1,388 @@
+/**
+ * Routine create/edit — visuals from src/app/new-routine.tsx.
+ * Many tokens mirror habit-form so the two screens feel cohesive.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  min-height: 100dvh;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0));
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-btn {
+  min-width: 64px;
+  background: none;
+  border: 0;
+  padding: 6px 0;
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.header-btn.cancel { text-align: left; }
+.header-btn.save {
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-tint);
+}
+.header-btn:disabled { opacity: 0.4; cursor: default; }
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0));
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Preview ──────────────────────────────────────────────────────────── */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.preview-badge {
+  width: 80px;
+  height: 80px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  text-align: center;
+}
+
+.preview-sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0;
+}
+
+/* ── Input ────────────────────────────────────────────────────────────── */
+
+.input {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 16px;
+  color: var(--color-text);
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+.input:focus {
+  border-color: var(--color-tint);
+}
+
+/* ── Icon picker ──────────────────────────────────────────────────────── */
+
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.icon-option {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background-color: var(--color-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+.icon-option.active {
+  color: #fff;
+}
+
+/* ── Color swatches ───────────────────────────────────────────────────── */
+
+.color-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.color-swatch.active {
+  border: 2.5px solid var(--color-text);
+}
+
+/* ── Habit selector ───────────────────────────────────────────────────── */
+
+.empty-habits {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-align: center;
+  line-height: 18px;
+}
+
+.habit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.habit-row.selected {
+  border-width: 1.5px;
+}
+
+.habit-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.habit-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkbox {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.selection-note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Reminder toggle ──────────────────────────────────────────────────── */
+
+.reminder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-weight: 500;
+}
+.reminder-toggle.on {
+  color: var(--color-text);
+}
+
+.reminder-toggle-text {
+  flex: 1;
+  text-align: left;
+}
+
+.toggle-track {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: var(--color-border);
+  padding: 2px;
+  transition: background-color var(--dur-fast) var(--ease-fast);
+}
+.toggle-track.on {
+  background-color: var(--color-tint);
+}
+
+.toggle-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: #fff;
+  transition: margin-left var(--dur-fast) var(--ease-fast);
+}
+.toggle-thumb.on {
+  margin-left: 20px;
+}
+
+.time-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: 100%;
+  cursor: pointer;
+  font-family: inherit;
+}
+.time-pill .time-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-tint);
+  letter-spacing: -0.5px;
+}
+.time-pill .chev {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+/* ── Sheet body (clock) ───────────────────────────────────────────────── */
+
+.sheet-body {
+  padding: 4px 24px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.sheet-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.sheet-close {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  display: inline-flex;
+  padding: 4px;
+}
+
+.clock-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.confirm-btn {
+  margin-top: 16px;
+  border: 0;
+  background-color: var(--color-tint);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+}

@@ -1,0 +1,172 @@
+@if (!routine()) {
+  <div class="page">
+    <div class="not-found">
+      <p class="not-found-text">Routine not found.</p>
+      <button type="button" class="back-link" (click)="goBack()">Go back</button>
+    </div>
+  </div>
+} @else {
+  @let r = routine()!;
+  <div class="page">
+    <header class="header">
+      <button type="button" class="back-btn" aria-label="Back" (click)="goBack()">
+        <app-ionicon name="arrow-back" [size]="22" />
+      </button>
+      <button type="button" class="edit-btn" (click)="edit()">Edit</button>
+    </header>
+
+    <div class="content">
+      <!-- Identity -->
+      <div class="identity">
+        <div class="identity-badge" [style.background-color]="r.color">
+          <app-ionicon [name]="r.icon" [size]="40" color="#fff" />
+        </div>
+        <h2 class="identity-name">{{ r.name }}</h2>
+        <p class="identity-sub">{{ identitySub() }}</p>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <app-ionicon name="flame" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value">{{ r.streak }}</span>
+          <span class="stat-label">Current streak</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+          <app-ionicon name="trophy-outline" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value">{{ r.bestStreak }}</span>
+          <span class="stat-label">Best streak</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+          <app-ionicon name="calendar-outline" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value small">{{ createdDate() }}</span>
+          <span class="stat-label">Started</span>
+        </div>
+      </div>
+
+      <!-- Today progress card -->
+      <div class="progress-card">
+        <div class="progress-left">
+          <span class="progress-title">{{ progressTitle() }}</span>
+          <span class="progress-sub">{{ progressSub() }}</span>
+        </div>
+        <div
+          class="progress-ring"
+          [style.border-color]="allDone() ? 'var(--color-done)' : r.color"
+        >
+          <span
+            class="progress-ring-pct"
+            [style.color]="allDone() ? 'var(--color-done)' : r.color"
+          >
+            {{ pctLabel() }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Streak callout -->
+      @if (r.streak > 1) {
+        <div class="streak-callout">
+          <app-ionicon name="flame" [size]="16" color="var(--color-streak)" />
+          <span class="streak-callout-text">
+            {{ r.streak }}-day routine streak — keep it up!
+          </span>
+        </div>
+      }
+
+      <!-- All-done banner -->
+      @if (allDone()) {
+        <div class="completed-banner">
+          <app-ionicon name="checkmark-circle" [size]="20" color="var(--color-done)" />
+          <span>All habits done for today!</span>
+        </div>
+      }
+
+      <!-- Mark all done button -->
+      @if (!allDone() && totalCount() > 0) {
+        <button
+          type="button"
+          class="mark-all-btn"
+          [style.background-color]="r.color"
+          (click)="markAllDone()"
+        >
+          <app-ionicon name="checkmark-circle-outline" [size]="20" color="#fff" />
+          <span>Mark all remaining done</span>
+        </button>
+      }
+
+      <!-- Habit steps -->
+      <h3 class="section-label">Habits in this routine</h3>
+      <div class="steps-card">
+        @if (routineHabits().length === 0) {
+          <div class="steps-empty">
+            <app-ionicon name="alert-circle-outline" [size]="20" color="var(--color-text-muted)" />
+            <span>
+              The habits in this routine may have been deleted. Edit the routine to update them.
+            </span>
+          </div>
+        } @else {
+          @for (habit of routineHabits(); track habit.id; let i = $index) {
+            @let done = isDone(habit);
+            <div class="step-row">
+              <span class="step-num" [class.done]="done">{{ i + 1 }}</span>
+              <div
+                class="step-icon"
+                [style.background-color]="done ? 'var(--color-done-light)' : habit.color"
+              >
+                @if (done) {
+                  <app-ionicon name="checkmark" [size]="16" color="var(--color-done)" />
+                } @else {
+                  <app-ionicon [name]="habit.icon" [size]="16" color="#fff" />
+                }
+              </div>
+              <div class="step-body">
+                <span class="step-name" [class.done]="done">{{ habit.name }}</span>
+              </div>
+              <button
+                type="button"
+                class="step-checkbox"
+                [class.done]="done"
+                [style.border-color]="done ? 'var(--color-done)' : null"
+                aria-label="Toggle habit"
+                (click)="toggleHabit(habit)"
+              >
+                @if (done) {
+                  <app-ionicon name="checkmark" [size]="14" color="#fff" />
+                }
+              </button>
+            </div>
+          }
+        }
+      </div>
+
+      <!-- Actions -->
+      <h3 class="section-label">Actions</h3>
+      <div class="actions-card">
+        <button type="button" class="action-row" (click)="openDeleteConfirm()">
+          <div class="action-icon" style="background-color: var(--color-danger-light)">
+            <app-ionicon name="trash-outline" [size]="18" color="var(--color-danger)" />
+          </div>
+          <div class="action-body">
+            <span class="action-label danger">Delete Routine</span>
+            <span class="action-sub">Permanently remove this routine and its streak</span>
+          </div>
+          <app-ionicon name="chevron-forward" [size]="14" color="var(--color-danger)" />
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <app-confirmation
+    [visible]="confirmDeleteVisible()"
+    title="Delete routine"
+    [message]="'Remove &quot;' + r.name + '&quot;? Your streak data will be lost.'"
+    icon="trash-outline"
+    iconColor="var(--color-danger)"
+    confirmLabel="Delete"
+    [destructive]="true"
+    (closed)="closeDeleteConfirm()"
+    (confirmed)="deleteRoutine()"
+  />
+}

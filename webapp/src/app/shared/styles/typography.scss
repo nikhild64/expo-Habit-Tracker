@@ -1,0 +1,71 @@
+/* ============================================================================
+ * Typography helpers — SCSS mixins that map the type scale from
+ * src/lib/ui/typography.ts (T.display → T.micro) onto CSS custom properties.
+ *
+ * Usage in component SCSS:
+ *   @use '../shared/styles/typography' as t;
+ *   .h1 { @include t.display; }
+ *   .row-title { @include t.title-small; }
+ * ============================================================================ */
+
+@mixin display {
+  font-family: var(--font-family-system);
+  font-size: var(--font-display-size);
+  font-weight: var(--font-display-weight);
+  letter-spacing: var(--font-display-spacing);
+  line-height: 1.1;
+}
+
+@mixin heading {
+  font-family: var(--font-family-system);
+  font-size: var(--font-heading-size);
+  font-weight: var(--font-heading-weight);
+  letter-spacing: var(--font-heading-spacing);
+  line-height: 1.15;
+}
+
+@mixin title {
+  font-family: var(--font-family-system);
+  font-size: var(--font-title-size);
+  font-weight: var(--font-title-weight);
+  letter-spacing: var(--font-title-spacing);
+  line-height: 1.2;
+}
+
+@mixin title-small {
+  font-family: var(--font-family-system);
+  font-size: var(--font-title-small-size);
+  font-weight: var(--font-title-small-weight);
+  letter-spacing: var(--font-title-small-spacing);
+  line-height: 1.25;
+}
+
+@mixin body {
+  font-family: var(--font-family-system);
+  font-size: var(--font-body-size);
+  font-weight: var(--font-body-weight);
+  line-height: 1.35;
+}
+
+@mixin body-small {
+  font-family: var(--font-family-system);
+  font-size: var(--font-body-small-size);
+  font-weight: var(--font-body-small-weight);
+  line-height: 1.4;
+}
+
+@mixin caption {
+  font-family: var(--font-family-system);
+  font-size: var(--font-caption-size);
+  font-weight: var(--font-caption-weight);
+  line-height: 1.35;
+}
+
+@mixin micro {
+  font-family: var(--font-family-system);
+  font-size: var(--font-micro-size);
+  font-weight: var(--font-micro-weight);
+  letter-spacing: var(--font-micro-spacing);
+  text-transform: uppercase;
+  line-height: 1.3;
+}

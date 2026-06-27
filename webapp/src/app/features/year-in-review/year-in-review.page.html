@@ -1,0 +1,80 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" (click)="back()" aria-label="Close">
+      <app-ionicon name="close" [size]="22" color="var(--color-text)" />
+    </button>
+    <h1 class="title">{{ year }} in Review</h1>
+    <div class="icon-spacer" aria-hidden="true"></div>
+  </header>
+
+  @if (visibleHabits().length === 0) {
+    <app-empty-state
+      icon="trophy-outline"
+      title="Your story starts here"
+      body="Track some habits this year and revisit this page to see your highlights."
+      [primaryAction]="{ label: 'Create habit', icon: 'add' }"
+      (primaryPressed)="newHabit()"
+    />
+  } @else {
+    <div class="content">
+      <!-- Hero -->
+      <app-card>
+        <div class="hero">
+          <app-ionicon name="trophy" [size]="56" color="#F59E0B" />
+          <span class="hero-num">{{ totalCompletions() }}</span>
+          <span class="hero-label">habit check-ins in {{ year }}</span>
+        </div>
+      </app-card>
+
+      <!-- Stat row -->
+      <div class="stat-row">
+        <app-card>
+          <span class="stat-label">LONGEST STREAK</span>
+          <span class="stat-value">{{ bestStreak() }}</span>
+          <span class="stat-sub">days in a row</span>
+        </app-card>
+        <app-card>
+          <span class="stat-label">BEST MONTH</span>
+          <span class="stat-value">{{ bestMonth().month }}</span>
+          <span class="stat-sub">{{ bestMonth().count }} check-ins</span>
+        </app-card>
+      </div>
+
+      <!-- Top habit -->
+      @if (topHabit(); as top) {
+        <app-card>
+          <span class="stat-label">TOP HABIT</span>
+          <div class="top-row">
+            <div class="top-badge" [style.background-color]="top.color">
+              <app-ionicon [name]="top.icon" [size]="26" color="#fff" />
+            </div>
+            <div class="top-info">
+              <span class="top-name">{{ top.name }}</span>
+              <span class="top-sub">{{ topHabitCompletions() }} completions · best streak {{ top.bestStreak }}</span>
+            </div>
+          </div>
+        </app-card>
+      }
+
+      <!-- Year heatmap -->
+      <h2 class="section-label">Your year, day by day</h2>
+      <app-card>
+        <div class="hscroll">
+          <app-year-heatmap
+            [completionsByDate]="heatmapMap()"
+            [maxCount]="maxHabitCount()"
+          />
+        </div>
+      </app-card>
+
+      <!-- Thanks card -->
+      <app-card [highlight]="'var(--color-tint)'">
+        <div class="thanks">
+          <app-ionicon name="sparkles-outline" [size]="22" color="var(--color-tint)" />
+          <span class="thanks-title">Here's to another great year</span>
+          <span class="thanks-body">Every check-in compounds. Keep showing up.</span>
+        </div>
+      </app-card>
+    </div>
+  }
+</section>

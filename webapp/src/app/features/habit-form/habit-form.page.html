@@ -1,0 +1,388 @@
+<div class="page">
+  <!-- ── Header ───────────────────────────────────────────────────────── -->
+  <header class="header">
+    <button type="button" class="header-btn cancel" (click)="cancel()">Cancel</button>
+    <h1 class="header-title">{{ title() }}</h1>
+    <button
+      type="button"
+      class="header-btn save"
+      [disabled]="saving()"
+      (click)="save()"
+    >
+      {{ saving() ? 'Saving…' : 'Save' }}
+    </button>
+  </header>
+
+  <!-- ── Scrollable content ───────────────────────────────────────────── -->
+  <div class="content">
+    <!-- Preview -->
+    <div class="preview">
+      <div class="preview-badge" [style.background-color]="color()">
+        <app-ionicon [name]="icon()" [size]="36" color="#fff" />
+      </div>
+      <p class="preview-name">{{ name() || 'Habit name' }}</p>
+      @if (habitType() !== 'binary') {
+        <div class="preview-badge-label">{{ habitTypeLabel() }}</div>
+      }
+    </div>
+
+    <!-- 1. Name -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Name</h2></div>
+      <input
+        class="input"
+        type="text"
+        [value]="name()"
+        (input)="onNameInput($event)"
+        placeholder="e.g. Drink Water, Read, Workout"
+        maxlength="40"
+        aria-label="Habit name"
+      />
+    </section>
+
+    <!-- 2. Habit type -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-label">Habit Type</h2>
+        @if (existing()) {
+          <span class="section-hint">switching will reset progress</span>
+        }
+      </div>
+      <div class="type-list">
+        @for (opt of typeOptions; track opt.id) {
+          @let active = habitType() === opt.id;
+          <button
+            type="button"
+            class="type-row"
+            [class.active]="active"
+            [style.background-color]="active ? color() + '14' : null"
+            [style.border-color]="active ? color() : null"
+            (click)="selectHabitType(opt.id)"
+          >
+            <div
+              class="type-icon"
+              [style.background-color]="active ? color() : null"
+            >
+              <app-ionicon
+                [name]="opt.icon"
+                [size]="20"
+                [color]="active ? '#fff' : 'var(--color-text-muted)'"
+              />
+            </div>
+            <span class="type-body">
+              <span class="type-label">{{ opt.label }}</span>
+              <span class="type-sub">{{ opt.sub }}</span>
+            </span>
+            @if (active) {
+              <app-ionicon name="checkmark-circle" [size]="20" [color]="color()" />
+            }
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 3. Target (quantitative only) -->
+    @if (habitType() === 'quantitative') {
+      <section class="section">
+        <div class="section-header"><h2 class="section-label">Target</h2></div>
+        <div class="target-row">
+          <input
+            class="input value"
+            type="text"
+            inputmode="numeric"
+            [value]="targetValue()"
+            (input)="onTargetValueInput($event)"
+            maxlength="4"
+            aria-label="Target value"
+          />
+          <input
+            class="input unit"
+            type="text"
+            [value]="targetUnit()"
+            (input)="onTargetUnitInput($event)"
+            placeholder="unit (glasses, pages, km…)"
+            maxlength="20"
+            aria-label="Target unit"
+          />
+        </div>
+      </section>
+    }
+
+    <!-- 4. Duration (timed only) -->
+    @if (habitType() === 'timed') {
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-label">Duration (minutes)</h2>
+        </div>
+        <div class="stepper-wrap">
+          <app-stepper
+            [value]="timerMinutes()"
+            [min]="1"
+            [max]="180"
+            [step]="5"
+            unit="minutes per session"
+            (changed)="onTimerMinutesChange($event)"
+          />
+        </div>
+      </section>
+    }
+
+    <!-- 5. Checklist (binary only) -->
+    @if (habitType() === 'binary') {
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-label">Checklist</h2>
+          <span class="section-hint">optional — done when all checked</span>
+        </div>
+        @if (subtasks().length > 0) {
+          <div class="subtask-list">
+            @for (st of subtasks(); track st.id) {
+              <div class="subtask-row">
+                <app-ionicon name="square-outline" [size]="16" color="var(--color-text-muted)" />
+                <span class="subtask-text">{{ st.label }}</span>
+                <button
+                  type="button"
+                  class="subtask-remove"
+                  aria-label="Remove sub-task"
+                  (click)="removeSubtask(st.id)"
+                >
+                  <app-ionicon name="close-circle" [size]="18" />
+                </button>
+              </div>
+            }
+          </div>
+        }
+        <div class="subtask-add-row">
+          <input
+            class="input"
+            type="text"
+            [value]="newSubtaskText()"
+            (input)="onSubtaskTextInput($event)"
+            (keydown)="onSubtaskKeydown($event)"
+            placeholder="Add a step…"
+            aria-label="New sub-task"
+          />
+          <button
+            type="button"
+            class="subtask-add-btn"
+            [style.background-color]="color()"
+            [disabled]="!hasSubtaskText()"
+            (click)="addSubtask()"
+            aria-label="Add sub-task"
+          >
+            <app-ionicon name="add" [size]="20" />
+          </button>
+        </div>
+      </section>
+    }
+
+    <!-- 6. Time of Day -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Time of Day</h2></div>
+      <div class="tod-grid">
+        @for (opt of todOptions; track opt.id) {
+          @let active = timeOfDay() === opt.id;
+          <button
+            type="button"
+            class="tod-cell"
+            [class.active]="active"
+            [style.background-color]="active ? color() + '18' : null"
+            [style.border-color]="active ? color() : null"
+            [style.color]="active ? color() : null"
+            (click)="selectTimeOfDay(opt.id)"
+          >
+            <app-ionicon
+              [name]="opt.icon"
+              [size]="18"
+              [color]="active ? color() : 'var(--color-text-muted)'"
+            />
+            <span>{{ opt.label }}</span>
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 7. Icon -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Icon</h2></div>
+      <div class="icon-grid">
+        @for (ic of iconChoices; track ic) {
+          @let active = ic === icon();
+          <button
+            type="button"
+            class="icon-option"
+            [class.active]="active"
+            [style.background-color]="active ? color() : null"
+            (click)="selectIcon(ic)"
+            [attr.aria-label]="ic"
+            [attr.aria-pressed]="active"
+          >
+            <app-ionicon [name]="ic" [size]="22" />
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 8. Color -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Color</h2></div>
+      <div class="color-row">
+        @for (col of colorChoices; track col) {
+          @let active = col === color();
+          <button
+            type="button"
+            class="color-swatch"
+            [class.active]="active"
+            [style.background-color]="col"
+            (click)="selectColor(col)"
+            [attr.aria-label]="'Color ' + col"
+            [attr.aria-pressed]="active"
+          >
+            @if (active) {
+              <app-ionicon name="checkmark" [size]="14" color="#fff" />
+            }
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 9. Category -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Category</h2></div>
+      <div class="cat-grid">
+        @for (cat of catChoices; track cat) {
+          @let meta = catMeta[cat];
+          @let active = category() === cat;
+          <button
+            type="button"
+            class="cat-chip"
+            [class.active]="active"
+            [style.border-color]="active ? meta.color : null"
+            [style.background-color]="active ? meta.color + '18' : null"
+            [style.color]="active ? meta.color : null"
+            (click)="selectCategory(cat)"
+          >
+            <app-ionicon
+              [name]="meta.icon"
+              [size]="14"
+              [color]="active ? meta.color : 'var(--color-text-muted)'"
+            />
+            <span>{{ meta.label }}</span>
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 10. Frequency -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Frequency</h2></div>
+      <div class="freq-rail" role="radiogroup" aria-label="Frequency">
+        @for (opt of freqOptions; track opt.kind) {
+          @let active = kind() === opt.kind;
+          <button
+            type="button"
+            class="freq-chip"
+            [class.active]="active"
+            [style.border-color]="active ? color() : null"
+            [style.background-color]="active ? color() : null"
+            (click)="selectFreq(opt.kind)"
+            role="radio"
+            [attr.aria-checked]="active"
+          >
+            <app-ionicon
+              [name]="opt.icon"
+              [size]="14"
+              [color]="active ? '#fff' : 'var(--color-text-secondary)'"
+            />
+            <span>{{ opt.label }}</span>
+          </button>
+        }
+      </div>
+
+      @if (kind() === 'weekly') {
+        <div class="week-row">
+          @for (label of dayLabels; track $index) {
+            @let day = $index + 1;
+            @let selected = weekdays().includes(day);
+            <button
+              type="button"
+              class="day-btn"
+              [class.active]="selected"
+              [style.background-color]="selected ? color() : null"
+              [style.border-color]="selected ? color() : null"
+              (click)="toggleWeekday(day)"
+            >
+              <span class="day-short">{{ label }}</span>
+              <span class="day-full">{{ dayFull[$index] }}</span>
+            </button>
+          }
+        </div>
+      }
+
+      @if (kind() === 'xperweek') {
+        <div class="stepper-wrap">
+          <app-stepper
+            [value]="xperweekCount()"
+            [min]="1"
+            [max]="6"
+            [step]="1"
+            unit="times per week"
+            (changed)="onXperweekChange($event)"
+          />
+        </div>
+      }
+
+      @if (kind() === 'interval') {
+        <div class="stepper-wrap">
+          <app-stepper
+            [value]="intervalDays()"
+            [min]="2"
+            [max]="30"
+            [step]="1"
+            unit="days between reminders"
+            (changed)="onIntervalChange($event)"
+          />
+        </div>
+      }
+
+      <p class="freq-summary">{{ freqSummary() }}</p>
+    </section>
+
+    <!-- 11. Reminder Time -->
+    <section class="section">
+      <div class="section-header"><h2 class="section-label">Reminder Time</h2></div>
+      <button type="button" class="time-pill" (click)="openTimePicker()">
+        <app-ionicon name="time-outline" [size]="20" color="var(--color-tint)" />
+        <span class="time-value">{{ timeLabel() }}</span>
+        <app-ionicon class="chev" name="chevron-down" [size]="14" />
+      </button>
+    </section>
+  </div>
+</div>
+
+<!-- ── Reminder time picker ──────────────────────────────────────────── -->
+<app-bottom-sheet
+  [visible]="showTimePicker()"
+  [snapPoints]="[0.75]"
+  (closed)="closeTimePicker()"
+>
+  <div class="sheet-body">
+    <div class="sheet-header">
+      <h3 class="sheet-title">Reminder time</h3>
+      <button type="button" class="sheet-close" aria-label="Close" (click)="closeTimePicker()">
+        <app-ionicon name="close" [size]="20" />
+      </button>
+    </div>
+    <div class="clock-wrap">
+      <app-clock-face
+        [hour24]="pickerHour()"
+        [minute]="pickerMinute()"
+        (hourChange)="pickerHour.set($event)"
+        (minuteChange)="pickerMinute.set($event)"
+      />
+    </div>
+    <button type="button" class="confirm-btn" (click)="confirmTimePicker()">
+      Confirm {{ pickerTimeLabel() }}
+    </button>
+  </div>
+</app-bottom-sheet>

@@ -1,0 +1,417 @@
+@use '../../shared/styles/mixins' as x;
+
+:host {
+  display: block;
+  background-color: var(--color-bg);
+}
+
+.page {
+  padding: 8px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  margin-bottom: 4px;
+}
+
+.heading {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.coin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background-color: #f59e0b22;
+  border: 0;
+  appearance: none;
+  cursor: pointer;
+  @include x.focus-ring;
+}
+
+.coin-text {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f59e0b;
+}
+
+/* ── Quick actions ──────────────────────────────────────────────── */
+
+.action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 0;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  cursor: pointer;
+  appearance: none;
+  @include x.focus-ring;
+}
+
+.action-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.emoji-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ── Section labels ─────────────────────────────────────────────── */
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+/* ── Daily quests ───────────────────────────────────────────────── */
+
+.quests-card {
+  background-color: var(--color-surface);
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.quest-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+
+  &.with-border {
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+.quest-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.quest-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.quest-title {
+  font-size: 14px;
+  font-weight: 700;
+
+  &.completed {
+    text-decoration: line-through;
+  }
+}
+
+.quest-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+.reward-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.reward-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ── Hero level card ────────────────────────────────────────────── */
+
+.hero-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.hero-accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+}
+
+.hero-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+}
+
+.level-num {
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.hero-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.level-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.xp-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.xp-track {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.xp-fill {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  transition: width var(--dur-normal) var(--ease-slow);
+}
+
+.xp-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.level-ladder {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.ladder-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  transition: transform var(--dur-fast) var(--ease-smooth);
+}
+
+.ladder-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.ladder-label {
+  font-size: 9px;
+  flex: 1;
+  text-align: center;
+  color: var(--color-text-muted);
+
+  &.current {
+    font-weight: 700;
+  }
+}
+
+/* ── Stats row ──────────────────────────────────────────────────── */
+
+.stats-row {
+  display: flex;
+  gap: 8px;
+}
+
+.stat-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* ── Achievements grid ──────────────────────────────────────────── */
+
+.ach-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ach-card {
+  position: relative;
+  width: calc(50% - 5px);
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  &.locked {
+    opacity: 0.5;
+  }
+}
+
+.ach-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  margin-bottom: 2px;
+}
+
+.check-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  border: 2px solid #fff;
+}
+
+.ach-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ach-desc {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.ach-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.xp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-alt);
+  cursor: pointer;
+  appearance: none;
+  margin-top: 4px;
+  @include x.focus-ring;
+}
+
+.expand-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}

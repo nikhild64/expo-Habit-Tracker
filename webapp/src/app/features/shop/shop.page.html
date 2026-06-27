@@ -1,0 +1,72 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" (click)="back()" aria-label="Close">
+      <app-ionicon name="close" [size]="22" color="var(--color-text)" />
+    </button>
+    <h1 class="title">Cosmetics</h1>
+    <div class="coin-pill" aria-label="Coin balance">
+      <app-ionicon name="cash" [size]="14" color="#F59E0B" />
+      <span class="coin-text">{{ coins() }}</span>
+    </div>
+  </header>
+
+  <div class="content">
+    <app-card>
+      <div class="hero">
+        <app-ionicon name="color-palette-outline" [size]="36" color="var(--color-tint)" />
+        <h2 class="hero-title">Personalize your app</h2>
+        <p class="hero-body">
+          Earn coins from completing habits and unlocking achievements. Spend them on accent themes here.
+        </p>
+      </div>
+    </app-card>
+
+    <h2 class="section-label">ACCENT THEMES</h2>
+    <div class="grid">
+      @for (preset of accents; track preset.id) {
+        <app-card>
+          <div class="cell">
+            <div class="swatch" [style.background-color]="preset.tint">
+              @if (isUnlocked(preset.id)) {
+                <app-ionicon
+                  [name]="isActive(preset.id) ? 'checkmark' : 'color-fill-outline'"
+                  [size]="20"
+                  color="#fff"
+                />
+              } @else {
+                <app-ionicon name="lock-closed" [size]="18" color="#fff" />
+              }
+            </div>
+            <span class="cell-label">{{ preset.label }}</span>
+            @if (isUnlocked(preset.id)) {
+              <app-button
+                [label]="isActive(preset.id) ? 'Active' : 'Apply'"
+                [variant]="isActive(preset.id) ? 'ghost' : 'secondary'"
+                [disabled]="isActive(preset.id)"
+                (pressed)="apply(preset.id)"
+              />
+            } @else {
+              <app-button
+                [label]="'100 coins'"
+                icon="cash-outline"
+                variant="primary"
+                (pressed)="startBuy(preset)"
+              />
+            }
+          </div>
+        </app-card>
+      }
+    </div>
+  </div>
+
+  <app-confirmation
+    [visible]="pending() !== null"
+    [title]="pending() ? 'Unlock ' + pending()!.label + '?' : ''"
+    [message]="confirmMessage()"
+    [confirmLabel]="'Unlock for 100'"
+    icon="color-palette"
+    [iconColor]="pending()?.tint"
+    (closed)="cancelBuy()"
+    (confirmed)="confirmBuy()"
+  />
+</section>

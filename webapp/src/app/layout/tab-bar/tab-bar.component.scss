@@ -1,0 +1,43 @@
+@use '../../shared/styles/mixins' as x;
+
+:host {
+  display: contents;
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-around;
+  height: calc(56px + env(safe-area-inset-bottom, 0));
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  z-index: 100;
+  @include x.glass(var(--color-tab-overlay));
+  @include x.hairline-top(var(--color-tab-border));
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-fast);
+  @include x.focus-ring;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}

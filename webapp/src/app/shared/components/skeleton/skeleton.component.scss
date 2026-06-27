@@ -1,0 +1,10 @@
+@use '../../styles/motion' as m;
+
+:host {
+  display: block;
+}
+
+.skel {
+  background-color: var(--color-surface-alt);
+  @include m.pulse;
+}

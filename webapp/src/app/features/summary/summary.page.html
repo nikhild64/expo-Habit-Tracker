@@ -1,0 +1,96 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" (click)="back()" aria-label="Back">
+      <app-ionicon name="arrow-back" [size]="22" color="var(--color-text)" />
+    </button>
+    <div class="header-text">
+      <h1 class="title">Daily Summary</h1>
+      <p class="subtitle">{{ yesterdayLabel }}</p>
+    </div>
+    <div class="icon-spacer" aria-hidden="true"></div>
+  </header>
+
+  <div class="content">
+    @if (total() === 0) {
+      <div class="empty-card">
+        <app-ionicon name="leaf-outline" [size]="36" color="var(--color-text-muted)" />
+        <h2 class="empty-title">No habits yet</h2>
+        <p class="empty-body">Create habits to see your daily summary here.</p>
+        <button type="button" class="empty-btn" (click)="newHabit()">Create first habit</button>
+      </div>
+    } @else {
+      <!-- Overview -->
+      <div class="overview-card">
+        <span class="overview-title">{{ overviewTitle() }}</span>
+        <div class="progress-track">
+          <div
+            class="progress-fill"
+            [style.width.%]="progressPct()"
+            [style.background-color]="progressBarColor()"
+          ></div>
+        </div>
+        <span class="progress-pct">{{ progressPct() }}%</span>
+      </div>
+
+      <!-- Completed -->
+      @if (done().length > 0) {
+        <h2 class="section-label">Completed</h2>
+        <div class="list">
+          @for (h of done(); track h.id; let last = $last) {
+            <div class="row" [class.row-border]="!last">
+              <div class="icon-badge" [style.background-color]="h.color">
+                <app-ionicon [name]="h.icon" [size]="16" color="#fff" />
+              </div>
+              <span class="row-name">{{ h.name }}</span>
+              <span class="streak-tag">
+                <app-ionicon name="flame" [size]="12" color="var(--color-streak)" />
+                <span class="streak-text">{{ h.streak }}d</span>
+              </span>
+              <app-ionicon name="checkmark-circle" [size]="20" color="var(--color-done)" />
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Missed -->
+      @if (missed().length > 0) {
+        <h2 class="section-label">Missed</h2>
+        <div class="list">
+          @for (h of missed(); track h.id; let last = $last) {
+            <button
+              type="button"
+              class="row missed-row"
+              [class.row-border]="!last"
+              (click)="openHabit(h.id)"
+            >
+              <div class="icon-badge faded" [style.background-color]="h.color">
+                <app-ionicon [name]="h.icon" [size]="16" color="#fff" />
+              </div>
+              <div class="missed-body">
+                <span class="row-name muted">{{ h.name }}</span>
+                @if (h.streak > 0) {
+                  <span class="streak-reset">Streak of {{ h.streak }} at risk</span>
+                }
+              </div>
+              <app-ionicon name="close-circle-outline" [size]="20" color="var(--color-text-muted)" />
+            </button>
+          }
+        </div>
+      }
+
+      <!-- Risk callout -->
+      @if (streaksAtRisk().length > 0) {
+        <div class="risk-card">
+          <app-ionicon name="warning-outline" [size]="16" color="var(--color-streak)" />
+          <span class="risk-text">{{ riskText() }}</span>
+        </div>
+      }
+
+      <!-- CTA -->
+      <button type="button" class="cta-btn" (click)="goHome()">
+        <app-ionicon name="today-outline" [size]="18" color="#fff" />
+        <span>Go to Today's Habits</span>
+      </button>
+    }
+  </div>
+</section>

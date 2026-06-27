@@ -1,0 +1,100 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" (click)="back()" aria-label="Back">
+      <app-ionicon name="arrow-back" [size]="22" color="var(--color-text)" />
+    </button>
+    <div class="header-text">
+      <h1 class="title">Weekly Review</h1>
+      <p class="subtitle">{{ weekLabel }}</p>
+    </div>
+    <div class="icon-spacer" aria-hidden="true"></div>
+  </header>
+
+  <div class="content">
+    @if (activeHabits().length === 0) {
+      <div class="empty-card">
+        <app-ionicon name="calendar-outline" [size]="36" color="var(--color-text-muted)" />
+        <h2 class="empty-title">No habits yet</h2>
+        <p class="empty-body">Create habits to see your weekly review here.</p>
+        <button type="button" class="empty-btn" (click)="newHabit()">Create first habit</button>
+      </div>
+    } @else {
+      <!-- Overall score -->
+      <div class="score-card">
+        <span class="score-label">Overall Score</span>
+        <span class="score-value" [style.color]="scoreColor()">{{ overallScorePct() }}%</span>
+        <div class="progress-track">
+          <div
+            class="progress-fill"
+            [style.width.%]="overallScorePct()"
+            [style.background-color]="scoreColor()"
+          ></div>
+        </div>
+        <span class="score-caption">
+          Averaged across {{ activeHabits().length }} active habit{{ activeHabits().length === 1 ? '' : 's' }}
+        </span>
+      </div>
+
+      <!-- Highlights row -->
+      @if (habitRates().length > 1 && starEntry() && attentionEntry()) {
+        <div class="highlight-row">
+          <div class="highlight-card">
+            <div class="highlight-icon" style="background-color: #CA8A0422;">
+              <app-ionicon name="star" [size]="18" color="#CA8A04" />
+            </div>
+            <span class="highlight-header">Top Habit</span>
+            <span class="highlight-name">{{ starEntry()!.habit.name }}</span>
+            <span class="highlight-rate" style="color: var(--color-done);">{{ pct(starEntry()!.rate) }}%</span>
+          </div>
+          <div class="highlight-card">
+            <div class="highlight-icon" style="background-color: color-mix(in srgb, var(--color-danger) 13%, transparent);">
+              <app-ionicon name="alert-circle-outline" [size]="18" color="var(--color-danger)" />
+            </div>
+            <span class="highlight-header">Needs Attention</span>
+            <span class="highlight-name">{{ attentionEntry()!.habit.name }}</span>
+            <span class="highlight-rate" style="color: var(--color-danger);">{{ pct(attentionEntry()!.rate) }}%</span>
+          </div>
+        </div>
+      }
+
+      <!-- Per-habit breakdown -->
+      <h2 class="section-label">This Week's Habits</h2>
+      <div class="list">
+        @for (entry of habitRates(); track entry.habit.id; let i = $index, last = $last) {
+          <div class="row" [class.row-border]="!last">
+            <div class="icon-badge" [style.background-color]="entry.habit.color">
+              <app-ionicon [name]="entry.habit.icon" [size]="16" color="#fff" />
+            </div>
+            <div class="row-body">
+              <span class="row-name">{{ entry.habit.name }}</span>
+              <div class="mini-track">
+                <div
+                  class="mini-fill"
+                  [style.width.%]="pct(entry.rate)"
+                  [style.background-color]="rowColor(entry.rate)"
+                ></div>
+              </div>
+            </div>
+            <span class="row-pct" [style.color]="rowColor(entry.rate)">{{ pct(entry.rate) }}%</span>
+          </div>
+        }
+      </div>
+
+      <!-- Motivational message -->
+      <div
+        class="message-card"
+        [style.border-color]="'color-mix(in srgb, ' + scoreColor() + ' 25%, transparent)'"
+        [style.background-color]="'color-mix(in srgb, ' + scoreColor() + ' 9%, transparent)'"
+      >
+        <app-ionicon name="sparkles-outline" [size]="18" [color]="scoreColor()" />
+        <span class="message-text" [style.color]="scoreColor()">{{ motivationalMessage() }}</span>
+      </div>
+
+      <!-- CTA -->
+      <button type="button" class="cta-btn" (click)="goHome()">
+        <app-ionicon name="today-outline" [size]="18" color="#fff" />
+        <span>Start This Week Strong</span>
+      </button>
+    }
+  </div>
+</section>

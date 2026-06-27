@@ -1,0 +1,61 @@
+:host {
+  display: contents;
+}
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: #000;
+  transition: opacity var(--dur-fast) var(--ease-fast);
+  pointer-events: auto;
+}
+
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  background-color: var(--color-surface);
+  border-top-left-radius: var(--radius-3xl);
+  border-top-right-radius: var(--radius-3xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+  box-shadow: var(--shadow-overlay);
+  transition: height var(--dur-fast) var(--ease-smooth);
+}
+
+.handle-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.handle-area:active {
+  cursor: grabbing;
+}
+
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--color-border);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px calc(env(safe-area-inset-bottom, 0) + 16px);
+}

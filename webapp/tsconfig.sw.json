@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/sw",
+    "lib": ["ES2022", "WebWorker"],
+    "types": []
+  },
+  "include": ["src/service-worker/**/*.ts"]
+}

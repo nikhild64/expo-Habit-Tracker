@@ -1,20 +1,35 @@
 import cors from 'cors';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { Expo } from 'expo-server-sdk';
 import express from 'express';
 import { Redis } from '@upstash/redis';
+import webpush from 'web-push';
 
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
-const TOKENS_KEY     = 'habit_tracker:push_tokens';
+
+// ── Redis namespaces ──────────────────────────────────────────────────────────
+// Mobile (Expo) tokens — pre-existing.
+const TOKENS_KEY            = 'habit_tracker:push_tokens';
+// PWA web-push subscriptions (SET of JSON.stringify(PushSubscription)).
+const WEB_PUSH_SUBS_KEY     = 'habit_tracker:web_push_subs';
+// Per-subscription reminder schedule.  Key: `<prefix><subId>` → JSON
+// `{ slots, quietHours, tzOffsetMinutes, lastFired }`.  `lastFired` is internal
+// book-keeping used by the `/api/web-tick` cron to dedupe across runs.
+const WEB_REMINDERS_PREFIX  = 'habit_tracker:web_reminders:';
+// Sorted set of pending one-shot snooze fires.  Score = UTC ms timestamp,
+// member = JSON `{ subscription, payload, fireAt }`.
+const WEB_SNOOZE_QUEUE_KEY  = 'habit_tracker:web_snooze_queue';
+
 const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || null;
 const DEVICE_API_KEY = process.env.DEVICE_API_KEY || null;
 
 /**
  * Vercel automatically injects CRON_SECRET as an env var on every deployment
  * and sends it as "Authorization: Bearer <secret>" on each cron invocation.
- * We read it here so the cron endpoint can validate it without needing the
+ * We read it here so the cron endpoints can validate it without needing the
  * privileged ADMIN_API_KEY.
  */
 const CRON_SECRET = process.env.CRON_SECRET || null;
@@ -29,6 +44,34 @@ function formatISTFromUTC(utcHour, utcMinute) {
   return `${String(Math.floor(ist / 60)).padStart(2, '0')}:${String(ist % 60).padStart(2, '0')} IST`;
 }
 const DAILY_SUMMARY_IST = formatISTFromUTC(DAILY_SUMMARY_UTC_HOUR, DAILY_SUMMARY_UTC_MINUTE);
+
+// ── VAPID (Web Push) ──────────────────────────────────────────────────────────
+//
+// Generate once with `npx web-push generate-vapid-keys` and set
+// VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT in the env.  The public
+// key is exposed via `GET /web/vapid` so the PWA can subscribe.  Registrations
+// are still accepted when VAPID is unset (the schedule is just stored); only
+// the actual `webpush.sendNotification` calls are skipped.
+const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY  || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT     = process.env.VAPID_SUBJECT     || 'mailto:nikhildhawan.dev@gmail.com';
+
+function isVapidConfigured() {
+  return Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+}
+
+if (isVapidConfigured()) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    console.log('[web-push] VAPID configured (subject=' + VAPID_SUBJECT + ').');
+  } catch (e) {
+    console.error('[web-push] Failed to configure VAPID:', e.message || e);
+  }
+} else {
+  console.warn('[web-push] VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not set — web push send disabled (registrations + schedule writes still accepted).');
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 /** Extracts the API key from common header locations. */
 function extractKey(req) {
@@ -53,7 +96,8 @@ function requireAdmin(req, res, next) {
 }
 
 /**
- * Device-level access — used by mobile app for /register and /unregister.
+ * Device-level access — used by mobile app for /register and /unregister and by
+ * the PWA for /web/register, /web/unregister, /web/schedule, /api/snooze.
  * Accepts either the DEVICE_API_KEY or the ADMIN_API_KEY (admin can do everything).
  * If neither key is set, requests pass (local dev fallback).
  */
@@ -68,10 +112,11 @@ function requireDevice(req, res, next) {
 }
 
 /**
- * Cron-or-admin access — used only for GET /api/daily-summary.
+ * Cron-or-admin access — used for GET /api/daily-summary, /api/weekly-summary,
+ * and /api/web-tick.
  *
  * Accepts two callers:
- *  1. ADMIN_API_KEY  — manual "Send Daily Summary" trigger from the dashboard
+ *  1. ADMIN_API_KEY  — manual trigger from the dashboard
  *  2. CRON_SECRET    — Vercel Cron, which automatically injects its own secret
  *                      as "Authorization: Bearer <CRON_SECRET>" on every run.
  *                      Without this, the cron silently returns 401 in production
@@ -99,13 +144,108 @@ const expo = new Expo({
   useFcmV1: true,
 });
 
+// ── Web-push helpers ──────────────────────────────────────────────────────────
+
+/** Stable 16-char hex id derived from a web-push subscription endpoint. */
+function subIdFromEndpoint(endpoint) {
+  return crypto.createHash('sha256').update(String(endpoint || '')).digest('hex').slice(0, 16);
+}
+
+/** Returns true if `sub` is a structurally-valid PushSubscription JSON. */
+function isValidSubscription(sub) {
+  return Boolean(
+    sub && typeof sub === 'object'
+    && typeof sub.endpoint === 'string' && /^https?:\/\//.test(sub.endpoint)
+    && sub.keys && typeof sub.keys === 'object'
+    && typeof sub.keys.p256dh === 'string' && sub.keys.p256dh.length > 0
+    && typeof sub.keys.auth   === 'string' && sub.keys.auth.length   > 0,
+  );
+}
+
+/**
+ * Mirror of [src/lib/habits/quiet-hours.ts](../src/lib/habits/quiet-hours.ts)
+ * `isInQuietHours` — overnight wrap aware (start > end → curr >= start || curr < end).
+ */
+function isInQuietHours(hour, minute, qh) {
+  if (!qh || !qh.enabled) return false;
+  const curr  = hour * 60 + minute;
+  const start = (qh.startHour ?? 0) * 60 + (qh.startMinute ?? 0);
+  const end   = (qh.endHour   ?? 0) * 60 + (qh.endMinute   ?? 0);
+  if (start === end) return false;
+  if (start > end) return curr >= start || curr < end; // wraps midnight
+  return curr >= start && curr < end;
+}
+
+/**
+ * Defensively read a JSON value from Redis.  Upstash auto-parses JSON strings,
+ * but older SDKs (and non-JSON-looking values) return raw strings — handle both.
+ */
+async function getJson(key) {
+  const raw = await redis.get(key);
+  if (raw == null) return null;
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+/**
+ * Defensively parse a SET / ZSET member.  Upstash auto-parses JSON-shaped
+ * strings into objects on SMEMBERS / ZRANGE; older SDKs return raw strings.
+ */
+function parseMember(item) {
+  if (item == null) return null;
+  if (typeof item === 'object') return item;
+  try { return JSON.parse(item); } catch { return null; }
+}
+
+/**
+ * Send a single web-push notification.  Never throws.
+ *
+ * On HTTP 404 / 410 (sub expired or unsubscribed) the subscription is
+ * automatically pruned from `WEB_PUSH_SUBS_KEY` and its reminders hash is DEL'd
+ * — mirrors the existing Expo `DeviceNotRegistered` cleanup.
+ *
+ * @param subscription Parsed PushSubscription object.
+ * @param payload      JSON-serializable payload sent as the push body.
+ * @param opts.ttl     TTL in seconds (default 60 — reminders are time-sensitive).
+ * @param opts.member  Optional exact Redis set member string for cheap SREM
+ *                     without re-scanning the set.
+ */
+async function sendWebPush(subscription, payload, { ttl = 60, member = null } = {}) {
+  if (!isVapidConfigured()) return { ok: false, code: 'no-vapid' };
+  try {
+    await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: ttl });
+    return { ok: true };
+  } catch (err) {
+    const code = err?.statusCode;
+    if (code === 404 || code === 410) {
+      let dead = member;
+      if (!dead) {
+        const all = await redis.smembers(WEB_PUSH_SUBS_KEY);
+        // Each SMEMBERS entry may be a parsed object (auto by Upstash) or the
+        // raw JSON string; SREM accepts either shape and will match.
+        dead = (all || []).find(item => {
+          const parsed = parseMember(item);
+          return parsed && parsed.endpoint === subscription.endpoint;
+        }) || null;
+      }
+      if (dead) await redis.srem(WEB_PUSH_SUBS_KEY, dead);
+      const subId = subIdFromEndpoint(subscription.endpoint);
+      await redis.del(WEB_REMINDERS_PREFIX + subId);
+      console.log(`[web-push] Pruned dead sub (${code}): ${subId}`);
+      return { ok: false, pruned: true, code };
+    }
+    console.error(`[web-push] Send failed (${code ?? '?'}): ${err?.message ?? err}`);
+    return { ok: false, code };
+  }
+}
+
 // ── Express ───────────────────────────────────────────────────────────────────
 
 const app = express();
 app.use(cors({
   origin: process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',') : '*',
 }));
-app.use(express.json());
+app.use(express.json({ limit: '128kb' }));
 
 // ── Dashboard UI ──────────────────────────────────────────────────────────────
 
@@ -120,6 +260,7 @@ const DASHBOARD = `<!DOCTYPE html>
   --text:#F0F0FC;--text2:#9090B8;--text3:#5A5A78;
   --brand:#FF8B1F;--brand-dim:#FF8B1F22;
   --ok:#34D399;--ok-dim:#34D39920;--err:#F87171;--err-dim:#F8717120;
+  --web:#6366F1;--web-dim:#6366F122;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
@@ -189,12 +330,13 @@ header{
   transition:color .15s,border-color .15s;
 }
 .signout-btn:hover{color:var(--err);border-color:var(--err)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
 .card{
   background:var(--surface);border:1px solid var(--border);border-radius:16px;
   padding:20px;display:flex;flex-direction:column;gap:6px;
 }
-.card-value{font-size:38px;font-weight:800;color:var(--text);line-height:1}
+.card-value{font-size:32px;font-weight:800;color:var(--text);line-height:1}
 .card-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3)}
 .section{
   background:var(--surface);border:1px solid var(--border);border-radius:16px;
@@ -222,9 +364,12 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .btn-primary{background:var(--brand);color:#fff}
 .btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
 .btn-sm{padding:5px 12px;font-size:12px}
+.toggle-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
+.toggle-row input{accent-color:var(--web);width:14px;height:14px;cursor:pointer}
 .tokens-list{display:flex;flex-direction:column;gap:8px}
 .token-row{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--surface2);border:1px solid var(--border);border-radius:10px}
 .token-text{font-family:monospace;font-size:11px;color:var(--text2);flex:1;word-break:break-all}
+.subid-tag{font-family:monospace;font-size:11px;color:var(--web);background:var(--web-dim);padding:3px 7px;border-radius:6px;letter-spacing:.5px}
 .log-list{display:flex;flex-direction:column;max-height:260px;overflow-y:auto}
 .log-entry{display:flex;gap:14px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
 .log-entry:last-child{border-bottom:none}
@@ -283,6 +428,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
       <div class="card-label">Registered Devices</div>
     </div>
     <div class="card">
+      <div class="card-value" id="web-sub-count">—</div>
+      <div class="card-label">Web Push Subscriptions</div>
+    </div>
+    <div class="card">
       <div class="card-value" id="summary-hour">—</div>
       <div class="card-label">Daily Summary (IST)</div>
     </div>
@@ -310,6 +459,11 @@ button:disabled{opacity:.35;cursor:not-allowed}
     </div>
     <div class="actions">
       <button class="btn-primary" onclick="sendCustom()">Send to All Devices</button>
+      <label class="toggle-row" title="Broadcasts to Expo + Web (cosmetic — selective sends still target only Expo tokens)">
+        <input type="checkbox" id="notif-include-web" checked />
+        <span>Web Push</span>
+      </label>
+      <span class="hint">Broadcasts to Expo + Web</span>
       <div id="spinner"></div>
     </div>
   </div>
@@ -352,13 +506,24 @@ button:disabled{opacity:.35;cursor:not-allowed}
 
   <div class="section" id="tokens-section">
     <div class="section-header">
-      <span class="section-title">Registered Tokens</span>
+      <span class="section-title">Registered Tokens (Expo)</span>
       <div style="display:flex;gap:8px;align-items:center">
         <span style="font-size:11px;color:var(--text3)">No selection = send to all</span>
         <button class="btn-secondary btn-sm" onclick="toggleTokens()">Show</button>
       </div>
     </div>
     <div class="tokens-list hidden" id="tokens-list"></div>
+  </div>
+
+  <div class="section" id="websubs-section">
+    <div class="section-header">
+      <span class="section-title">Web Push Subscriptions</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--text3)">Broadcast targets — read-only</span>
+        <button class="btn-secondary btn-sm" onclick="toggleWebSubs()">Show</button>
+      </div>
+    </div>
+    <div class="tokens-list hidden" id="websubs-list"></div>
   </div>
 
   <div class="section">
@@ -372,8 +537,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
 </div>
 <script>
   const log = [];
-  let tokensVisible = false;
-  let lastTokens = [];
+  let tokensVisible   = false;
+  let webSubsVisible  = false;
+  let lastTokens   = [];
+  let lastWebSubs  = [];
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -425,13 +592,11 @@ button:disabled{opacity:.35;cursor:not-allowed}
     loadStatus();
   }
 
-  // On load — check if already authenticated
   (async () => {
     const key = getKey();
-    if (!key) { return; } // show login page
+    if (!key) { return; }
     const res = await fetch('/status', { headers: { 'X-Admin-Key': key } }).catch(() => null);
     if (res && res.ok) showDashboard();
-    // else: leave login page visible
   })();
 
   function addLog(msg, type = 'info') {
@@ -451,11 +616,23 @@ button:disabled{opacity:.35;cursor:not-allowed}
     lastTokens = tokens;
     const el = document.getElementById('tokens-list');
     if (!tokens.length) { el.innerHTML = '<span style="font-size:12px;color:#94a3b8">No devices registered</span>'; return; }
-    el.innerHTML = tokens.map((t, i) =>
+    el.innerHTML = tokens.map(t =>
       '<label class="token-row" style="cursor:pointer;display:flex;gap:10px;align-items:center">' +
       '<input type="checkbox" class="token-checkbox" value="' + t + '" style="accent-color:#2563eb" />' +
       '<span class="token-text">' + t.substring(0, 40) + '…</span>' +
       '</label>'
+    ).join('');
+  }
+
+  function renderWebSubs(subs) {
+    lastWebSubs = subs;
+    const el = document.getElementById('websubs-list');
+    if (!subs.length) { el.innerHTML = '<span style="font-size:12px;color:#94a3b8">No web subscriptions yet</span>'; return; }
+    el.innerHTML = subs.map(s =>
+      '<div class="token-row">' +
+      '<span class="subid-tag">' + (s.subId || '?') + '</span>' +
+      '<span class="token-text">' + ((s.endpoint || '').substring(0, 56)) + '…</span>' +
+      '</div>'
     ).join('');
   }
 
@@ -470,6 +647,13 @@ button:disabled{opacity:.35;cursor:not-allowed}
     if (tokensVisible) renderTokens(lastTokens);
   }
 
+  function toggleWebSubs() {
+    webSubsVisible = !webSubsVisible;
+    document.getElementById('websubs-list').classList.toggle('hidden', !webSubsVisible);
+    document.querySelector('#websubs-section .btn-secondary').textContent = webSubsVisible ? 'Hide' : 'Show';
+    if (webSubsVisible) renderWebSubs(lastWebSubs);
+  }
+
   function spin(on) { document.getElementById('spinner').style.display = on ? 'block' : 'none'; }
 
   async function loadStatus() {
@@ -478,10 +662,14 @@ button:disabled{opacity:.35;cursor:not-allowed}
       const res = await fetch('/status', { headers: { 'X-Admin-Key': getKey() } });
       if (!res.ok) throw new Error('Status ' + res.status);
       const data = await res.json();
-      document.getElementById('device-count').textContent = data.registeredDevices;
-      document.getElementById('summary-hour').textContent = data.dailySummaryIST || (String(data.dailySummaryHour).padStart(2, '0') + ':00');
-      document.getElementById('conn-status').innerHTML = '<span class="dot"></span>Connected';
-      renderTokens(data.tokens || []);
+      const expoCount = data.tokens?.expo ?? data.registeredDevices ?? 0;
+      const webCount  = data.tokens?.web  ?? data.webPushSubs       ?? 0;
+      document.getElementById('device-count').textContent  = expoCount;
+      document.getElementById('web-sub-count').textContent = webCount;
+      document.getElementById('summary-hour').textContent  = data.dailySummaryIST || (String(data.dailySummaryHour).padStart(2, '0') + ':00');
+      document.getElementById('conn-status').innerHTML     = '<span class="dot"></span>Connected';
+      renderTokens(data.expoTokens || []);
+      renderWebSubs(data.webSubs  || []);
     } catch (e) {
       document.getElementById('conn-status').innerHTML = '<span class="dot err"></span>Error';
       addLog('Status fetch failed: ' + e.message, 'err');
@@ -497,7 +685,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
 
     if (!title || !body) { addLog('Title and message are required', 'err'); return; }
 
-    const target = selected.length ? selected.length + ' selected device(s)' : 'all devices';
+    const target = selected.length ? selected.length + ' selected Expo device(s)' : 'all devices (Expo + Web)';
     addLog('Sending "' + title + '" → ' + target + '…', 'info');
     spin(true);
     try {
@@ -514,8 +702,12 @@ button:disabled{opacity:.35;cursor:not-allowed}
         body: JSON.stringify(payload),
       });
       const d = await res.json();
-      if (res.ok) addLog('Sent to ' + d.sent + ' device(s) ✓', 'ok');
-      else addLog('Failed: ' + d.error, 'err');
+      if (res.ok) {
+        const expoMsg = (d.sent || 0) + ' Expo';
+        const webMsg  = typeof d.webSent === 'number' ? (' + ' + d.webSent + ' Web') : '';
+        const pruneMsg = d.webPruned ? (' · pruned ' + d.webPruned + ' stale web sub(s)') : '';
+        addLog('Sent to ' + expoMsg + webMsg + ' ✓' + pruneMsg, 'ok');
+      } else addLog('Failed: ' + d.error, 'err');
     } catch (e) { addLog('Network error: ' + e.message, 'err'); }
     finally { spin(false); loadStatus(); }
   }
@@ -532,8 +724,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
         body: JSON.stringify({ ...(title ? { title } : {}), ...(body ? { body } : {}) }),
       });
       const d = await res.json();
-      if (res.ok) addLog('Daily summary sent to ' + d.sent + ' device(s) ✓', 'ok');
-      else addLog('Failed: ' + d.error, 'err');
+      if (res.ok) {
+        const webMsg = typeof d.webSent === 'number' ? (' + ' + d.webSent + ' Web') : '';
+        addLog('Daily summary sent to ' + (d.sent || 0) + ' Expo' + webMsg + ' ✓', 'ok');
+      } else addLog('Failed: ' + d.error, 'err');
     } catch (e) { addLog('Network error: ' + e.message, 'err'); }
     finally { spin(false); }
   }
@@ -550,8 +744,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
         body: JSON.stringify({ ...(title ? { title } : {}), ...(body ? { body } : {}) }),
       });
       const d = await res.json();
-      if (res.ok) addLog('Weekly summary sent to ' + d.sent + ' device(s) ✓', 'ok');
-      else addLog('Failed: ' + d.error, 'err');
+      if (res.ok) {
+        const webMsg = typeof d.webSent === 'number' ? (' + ' + d.webSent + ' Web') : '';
+        addLog('Weekly summary sent to ' + (d.sent || 0) + ' Expo' + webMsg + ' ✓', 'ok');
+      } else addLog('Failed: ' + d.error, 'err');
     } catch (e) { addLog('Network error: ' + e.message, 'err'); }
     finally { spin(false); }
   }
@@ -569,20 +765,42 @@ app.get('/', (_req, res) => {
   res.send(DASHBOARD);
 });
 
-/** Rich status for the dashboard — includes token list */
+/**
+ * GET /web/vapid — returns the VAPID public key so the PWA can subscribe.
+ * PUBLIC: the public key is meant to be shared.
+ */
+app.get('/web/vapid', (_req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY || null });
+});
+
+/** Rich status for the dashboard — includes token list + web sub list. */
 app.get('/status', requireAdmin, async (_req, res) => {
   try {
-    const count = await redis.scard(TOKENS_KEY);
-    const tokens = count > 0 ? await redis.smembers(TOKENS_KEY) : [];
+    const [expoCount, webCount] = await Promise.all([
+      redis.scard(TOKENS_KEY),
+      redis.scard(WEB_PUSH_SUBS_KEY),
+    ]);
+    const [expoTokens, webSubsRaw] = await Promise.all([
+      expoCount > 0 ? redis.smembers(TOKENS_KEY)        : [],
+      webCount  > 0 ? redis.smembers(WEB_PUSH_SUBS_KEY) : [],
+    ]);
+    const webSubs = (webSubsRaw || []).map(item => {
+      const sub = parseMember(item);
+      return sub
+        ? { subId: subIdFromEndpoint(sub.endpoint), endpoint: sub.endpoint }
+        : { subId: '?', endpoint: '(invalid)' };
+    });
     res.json({
       status: 'ok',
-      registeredDevices: count,
-      // Both UTC (for cron debugging) and IST (for display)
-      dailySummaryUTC: `${String(DAILY_SUMMARY_UTC_HOUR).padStart(2,'0')}:${String(DAILY_SUMMARY_UTC_MINUTE).padStart(2,'0')} UTC`,
-      dailySummaryIST: DAILY_SUMMARY_IST,
-      // Keep legacy key so old dashboard JS doesn't break
+      registeredDevices: expoCount,
+      webPushSubs: webCount,
+      tokens: { expo: expoCount, web: webCount },
+      vapidConfigured: isVapidConfigured(),
+      dailySummaryUTC:  `${String(DAILY_SUMMARY_UTC_HOUR).padStart(2,'0')}:${String(DAILY_SUMMARY_UTC_MINUTE).padStart(2,'0')} UTC`,
+      dailySummaryIST:  DAILY_SUMMARY_IST,
       dailySummaryHour: DAILY_SUMMARY_UTC_HOUR,
-      tokens,
+      expoTokens,
+      webSubs,
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -610,13 +828,156 @@ app.post('/unregister', requireDevice, async (req, res) => {
   return res.json({ success: true, count });
 });
 
+// ── Web Push: registration + schedule + snooze ───────────────────────────────
+
+/**
+ * POST /web/register — body `{ subscription }`.
+ * Stores the JSON-stringified subscription in `WEB_PUSH_SUBS_KEY` (SADD is
+ * idempotent — re-registering the same sub is a no-op).
+ */
+app.post('/web/register', requireDevice, async (req, res) => {
+  const { subscription } = req.body ?? {};
+  if (!isValidSubscription(subscription)) {
+    return res.status(400).json({ error: 'Invalid subscription — needs endpoint + keys.p256dh + keys.auth' });
+  }
+  const member = JSON.stringify(subscription);
+  await redis.sadd(WEB_PUSH_SUBS_KEY, member);
+  const count = await redis.scard(WEB_PUSH_SUBS_KEY);
+  const subId = subIdFromEndpoint(subscription.endpoint);
+  console.log(`[web/register] ${subId} (${count} total)`);
+  return res.json({ ok: true, subId, count });
+});
+
+/**
+ * POST /web/unregister — body `{ subscription }`.
+ * SREMs the sub and DELs the matching reminders hash.  Idempotent.
+ */
+app.post('/web/unregister', requireDevice, async (req, res) => {
+  const { subscription } = req.body ?? {};
+  if (!isValidSubscription(subscription)) {
+    return res.status(400).json({ error: 'Invalid subscription — needs endpoint + keys.p256dh + keys.auth' });
+  }
+  const member = JSON.stringify(subscription);
+  const subId  = subIdFromEndpoint(subscription.endpoint);
+  await Promise.all([
+    redis.srem(WEB_PUSH_SUBS_KEY, member),
+    redis.del(WEB_REMINDERS_PREFIX + subId),
+  ]);
+  const count = await redis.scard(WEB_PUSH_SUBS_KEY);
+  console.log(`[web/unregister] ${subId} (${count} remaining)`);
+  return res.json({ ok: true, count });
+});
+
+/**
+ * POST /web/schedule — body `{ subscription, slots, quietHours?, tzOffsetMinutes }`.
+ *
+ * `slots`: array of `{ id, hour, minute, weekdays?, title, body, data }`.
+ *   - `hour` / `minute` are **local clock times** (combined with `tzOffsetMinutes`
+ *     server-side to find the matching UTC minute).
+ *   - `weekdays` (optional): Expo convention `1=Sun … 7=Sat`.  Empty/undefined
+ *     = fire every day.
+ *
+ * `quietHours` (optional): `{ enabled, startHour, startMinute, endHour, endMinute }`.
+ *
+ * `tzOffsetMinutes`: **positive = ahead of UTC** (e.g. IST is +330).  The PWA
+ * client should send `-new Date().getTimezoneOffset()` to follow this convention.
+ *
+ * Replaces all slots for that sub atomically (single Redis SET).  `lastFired`
+ * book-keeping from the previous schedule is preserved so reminders that just
+ * fired don't re-fire when the schedule is edited mid-minute.
+ */
+app.post('/web/schedule', requireDevice, async (req, res) => {
+  const { subscription, slots, quietHours, tzOffsetMinutes } = req.body ?? {};
+  if (!isValidSubscription(subscription)) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+  if (!Array.isArray(slots)) {
+    return res.status(400).json({ error: 'slots must be an array' });
+  }
+  const tz = Number.isFinite(tzOffsetMinutes) ? tzOffsetMinutes : 0;
+
+  const cleanSlots = slots
+    .filter(s => s && typeof s.id === 'string'
+      && Number.isInteger(s.hour)   && s.hour   >= 0 && s.hour   <= 23
+      && Number.isInteger(s.minute) && s.minute >= 0 && s.minute <= 59)
+    .map(s => ({
+      id: s.id,
+      hour: s.hour,
+      minute: s.minute,
+      weekdays: Array.isArray(s.weekdays)
+        ? s.weekdays.filter(d => Number.isInteger(d) && d >= 1 && d <= 7)
+        : [],
+      title: typeof s.title === 'string' && s.title ? s.title : 'Habit reminder',
+      body:  typeof s.body  === 'string' && s.body  ? s.body  : 'Time to build your streak.',
+      data:  s.data && typeof s.data === 'object' ? s.data : {},
+    }));
+
+  const subId  = subIdFromEndpoint(subscription.endpoint);
+  const existing = await getJson(WEB_REMINDERS_PREFIX + subId);
+  const lastFired = existing && typeof existing.lastFired === 'object' ? existing.lastFired : {};
+
+  const record = {
+    slots: cleanSlots,
+    quietHours: quietHours && typeof quietHours === 'object' ? quietHours : null,
+    tzOffsetMinutes: tz,
+    lastFired,
+    updatedAt: Date.now(),
+  };
+  await redis.set(WEB_REMINDERS_PREFIX + subId, JSON.stringify(record));
+
+  console.log(`[web/schedule] ${subId}: ${cleanSlots.length} slot(s) · tz=${tz}m · qh=${quietHours?.enabled ? 'on' : 'off'}`);
+  return res.json({ ok: true, subId, slotCount: cleanSlots.length });
+});
+
+/**
+ * POST /api/snooze — body `{ subscription, habitId, minutes? = 10 }`.
+ *
+ * Enqueues a one-shot web-push to fire `minutes` from now.  Stored in
+ * `WEB_SNOOZE_QUEUE_KEY` (Redis ZSET keyed by UTC ms timestamp).  The
+ * `/api/web-tick` cron drains due items.
+ */
+app.post('/api/snooze', requireDevice, async (req, res) => {
+  const { subscription, habitId, minutes } = req.body ?? {};
+  if (!isValidSubscription(subscription)) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+  if (typeof habitId !== 'string' || !habitId) {
+    return res.status(400).json({ error: 'Missing habitId' });
+  }
+  const delayMin = Number.isFinite(minutes) && minutes > 0 && minutes <= 360 ? Math.floor(minutes) : 10;
+  const fireAt = Date.now() + delayMin * 60_000;
+
+  const item = JSON.stringify({
+    subscription,
+    payload: {
+      title: 'Habit reminder',
+      body:  'Snoozed — ready when you are.',
+      data:  { source: 'snooze', screen: '/habit', habitId },
+    },
+    fireAt,
+  });
+  await redis.zadd(WEB_SNOOZE_QUEUE_KEY, { score: fireAt, member: item });
+
+  const subId = subIdFromEndpoint(subscription.endpoint);
+  console.log(`[snooze] ${subId} · habit=${habitId} · +${delayMin}m (fires @ ${new Date(fireAt).toISOString()})`);
+  return res.json({ ok: true, subId, fireAt, minutes: delayMin });
+});
+
 /** Send a notification. Body: { title?, body?, data?, imageUrl?, to?: string[] } */
 app.post('/send', requireAdmin, async (req, res) => {
   const { title = 'Hello', body = 'Test notification', data = {}, imageUrl, to } = req.body ?? {};
   try {
     const result = await sendToAll({ title, body, data, imageUrl, targetTokens: Array.isArray(to) ? to : [] });
-    if (result.sent === 0) return res.status(400).json({ error: 'No registered devices to send to' });
-    return res.json({ success: true, sent: result.sent, tickets: result.tickets });
+    if (result.sent === 0 && result.webSent === 0) {
+      return res.status(400).json({ error: 'No registered devices to send to' });
+    }
+    return res.json({
+      success: true,
+      sent: result.sent,
+      webSent: result.webSent,
+      webPruned: result.webPruned,
+      tickets: result.tickets,
+    });
   } catch (e) {
     console.error('[send] Error:', e);
     return res.status(500).json({ error: 'Failed to send notifications' });
@@ -641,9 +1002,16 @@ async function handleDailySummary(req, res) {
       body,
       data: { source: 'daily-summary', screen: '/summary' },
     });
-    if (result.sent === 0) return res.status(400).json({ error: 'No registered devices' });
-    console.log(`[daily-summary] Sent to ${result.sent} device(s)`);
-    return res.json({ success: true, sent: result.sent });
+    if (result.sent === 0 && result.webSent === 0) {
+      return res.status(400).json({ error: 'No registered devices' });
+    }
+    console.log(`[daily-summary] Sent to ${result.sent} Expo + ${result.webSent} Web`);
+    return res.json({
+      success: true,
+      sent: result.sent,
+      webSent: result.webSent,
+      webPruned: result.webPruned,
+    });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
@@ -671,33 +1039,151 @@ async function handleWeeklySummary(req, res) {
       body,
       data: { source: 'weekly-summary', screen: '/weekly-review' },
     });
-    if (result.sent === 0) return res.status(400).json({ error: 'No registered devices' });
-    console.log(`[weekly-summary] Sent to ${result.sent} device(s)`);
-    return res.json({ success: true, sent: result.sent });
+    if (result.sent === 0 && result.webSent === 0) {
+      return res.status(400).json({ error: 'No registered devices' });
+    }
+    console.log(`[weekly-summary] Sent to ${result.sent} Expo + ${result.webSent} Web`);
+    return res.json({
+      success: true,
+      sent: result.sent,
+      webSent: result.webSent,
+      webPruned: result.webPruned,
+    });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
 }
 
-// GET  — called by Vercel Cron (Sunday 20:00 UTC) using CRON_SECRET
 app.get('/api/weekly-summary',  requireCronOrAdmin, handleWeeklySummary);
-// POST — called manually from the dashboard (always requires ADMIN_API_KEY)
 app.post('/api/weekly-summary', requireAdmin,       handleWeeklySummary);
+
+// ── Web Push tick (every minute) ──────────────────────────────────────────────
+
+/**
+ * GET /api/web-tick — Vercel Cron every minute.
+ *
+ * For every web-push subscription:
+ *   1. Load its reminder schedule (skip if none).
+ *   2. Compute the **local** hour:minute using `tzOffsetMinutes`.
+ *   3. Skip if inside quiet hours.
+ *   4. For each slot whose weekday matches (or has no weekday filter) and
+ *      whose hour:minute matches the current local minute — fire a web-push,
+ *      remembering the fire-key in `lastFired` to dedupe across cron runs.
+ *   5. Drain the snooze queue (any items whose UTC `fireAt` ≤ now).
+ *
+ * On 404/410 from the push service the sub is auto-pruned.
+ */
+async function handleWebTick(_req, res) {
+  if (!isVapidConfigured()) {
+    return res.json({ ok: true, scanned: 0, sent: 0, pruned: 0, note: 'VAPID not configured' });
+  }
+
+  const startedAt = Date.now();
+  const now = new Date(startedAt);
+  let scanned = 0;
+  let sent    = 0;
+  let pruned  = 0;
+
+  // ── Scheduled reminders ────────────────────────────────────────────────────
+  const subs = await redis.smembers(WEB_PUSH_SUBS_KEY);
+
+  for (const subStr of (subs || [])) {
+    scanned++;
+    const sub = parseMember(subStr);
+    if (!sub?.endpoint) continue;
+
+    const subId = subIdFromEndpoint(sub.endpoint);
+    const reminders = await getJson(WEB_REMINDERS_PREFIX + subId);
+    if (!reminders || !Array.isArray(reminders.slots) || reminders.slots.length === 0) continue;
+
+    const tzOffset = Number.isFinite(reminders.tzOffsetMinutes) ? reminders.tzOffsetMinutes : 0;
+    // localMs = UTC + tzOffsetMinutes (positive = ahead of UTC).
+    const localMs   = startedAt + tzOffset * 60_000;
+    const local     = new Date(localMs);
+    const localHour   = local.getUTCHours();
+    const localMinute = local.getUTCMinutes();
+    const localWeekday = local.getUTCDay() + 1; // 1=Sun .. 7=Sat (Expo convention)
+    const localDateKey = `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2,'0')}-${String(local.getUTCDate()).padStart(2,'0')}`;
+    const fireKey      = `${localDateKey} ${String(localHour).padStart(2,'0')}:${String(localMinute).padStart(2,'0')}`;
+
+    if (isInQuietHours(localHour, localMinute, reminders.quietHours)) continue;
+
+    const lastFired = (reminders.lastFired && typeof reminders.lastFired === 'object') ? { ...reminders.lastFired } : {};
+    let dirty  = false;
+    let killed = false;
+
+    for (const slot of reminders.slots) {
+      if (!slot || !Number.isInteger(slot.hour) || !Number.isInteger(slot.minute)) continue;
+      if (slot.hour !== localHour || slot.minute !== localMinute) continue;
+      if (Array.isArray(slot.weekdays) && slot.weekdays.length > 0 && !slot.weekdays.includes(localWeekday)) continue;
+      if (lastFired[slot.id] === fireKey) continue; // already fired this minute
+
+      const r = await sendWebPush(sub, {
+        title: slot.title || 'Habit reminder',
+        body:  slot.body  || 'Time to build your streak.',
+        data:  slot.data  || {},
+      }, { ttl: 60, member: subStr });
+
+      if (r.ok) {
+        sent++;
+        lastFired[slot.id] = fireKey;
+        dirty = true;
+      } else if (r.pruned) {
+        pruned++;
+        killed = true;
+        break; // sub is dead — no point checking remaining slots
+      }
+    }
+
+    if (dirty && !killed) {
+      await redis.set(WEB_REMINDERS_PREFIX + subId, JSON.stringify({ ...reminders, lastFired }));
+    }
+  }
+
+  // ── Snooze queue drain ─────────────────────────────────────────────────────
+  let dueItems = [];
+  try {
+    dueItems = await redis.zrange(WEB_SNOOZE_QUEUE_KEY, 0, startedAt, { byScore: true }) || [];
+  } catch (e) {
+    console.error('[web-tick] snooze zrange failed:', e?.message ?? e);
+  }
+
+  for (const item of dueItems) {
+    const parsed = parseMember(item);
+    if (parsed?.subscription && parsed?.payload) {
+      const r = await sendWebPush(parsed.subscription, parsed.payload, { ttl: 60 });
+      if (r.ok) sent++;
+      else if (r.pruned) pruned++;
+    }
+    // Always remove — one-shot, no retries (prevents infinite loop on bad data).
+    await redis.zrem(WEB_SNOOZE_QUEUE_KEY, item);
+  }
+
+  return res.json({ ok: true, scanned, sent, pruned, snoozeDrained: dueItems.length, tookMs: Date.now() - startedAt });
+}
+
+app.get('/api/web-tick', requireCronOrAdmin, handleWebTick);
 
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 /**
  * Fetch tokens from Redis, build messages, send via Expo in chunks.
- * When `targetTokens` is a non-empty array, only those tokens receive the push;
- * otherwise falls back to every token stored in Redis.
- * Maps ticket IDs back to tokens so DeviceNotRegistered receipts can prune Redis.
+ * Also fans out to web-push subscriptions on broadcasts (no `targetTokens`).
+ *
+ * When `targetTokens` is a non-empty array, only those Expo tokens receive the
+ * push and web subscriptions are skipped (selective sends are Expo-only by
+ * design — the dashboard targets specific Expo devices).
+ *
+ * Maps ticket IDs back to tokens so DeviceNotRegistered receipts can prune
+ * Redis (Expo).  Web-push pruning is synchronous via 404/410 in `sendWebPush`.
  */
 async function sendToAll({ title, body, data, imageUrl = undefined, targetTokens = [] }) {
-  const allTokens = await redis.smembers(TOKENS_KEY);
-  if (!allTokens || allTokens.length === 0) return { sent: 0, tickets: [] };
+  const isBroadcast = !targetTokens || targetTokens.length === 0;
 
-  const tokenPool = targetTokens.length > 0 ? targetTokens : allTokens;
-  const validTokens = tokenPool.filter(t => Expo.isExpoPushToken(t));
+  // ── Expo branch ──────────────────────────────────────────────────────────
+  const allTokens = await redis.smembers(TOKENS_KEY);
+  const tokenPool = isBroadcast ? allTokens : targetTokens;
+  const validTokens = (tokenPool || []).filter(t => Expo.isExpoPushToken(t));
   const messages = validTokens.map(to => ({
     to,
     sound: 'default',
@@ -707,22 +1193,39 @@ async function sendToAll({ title, body, data, imageUrl = undefined, targetTokens
     ...(imageUrl ? { imageUrl } : {}),
   }));
 
-  const chunks = expo.chunkPushNotifications(messages);
   const tickets = [];
-  for (const chunk of chunks) {
-    const batch = await expo.sendPushNotificationsAsync(chunk);
-    tickets.push(...batch);
+  if (messages.length > 0) {
+    const chunks = expo.chunkPushNotifications(messages);
+    for (const chunk of chunks) {
+      const batch = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...batch);
+    }
+
+    // Map ticket IDs → tokens for receipt-based pruning
+    const ticketTokenMap = new Map();
+    for (let i = 0; i < tickets.length; i++) {
+      const t = tickets[i];
+      if (t.status === 'ok' && t.id) ticketTokenMap.set(t.id, validTokens[i]);
+    }
+    setTimeout(() => checkReceipts(tickets, ticketTokenMap).catch(console.error), 15_000);
   }
 
-  // Map ticket IDs → tokens for receipt-based pruning
-  const ticketTokenMap = new Map();
-  for (let i = 0; i < tickets.length; i++) {
-    const t = tickets[i];
-    if (t.status === 'ok' && t.id) ticketTokenMap.set(t.id, validTokens[i]);
+  // ── Web Push branch (only on broadcasts) ─────────────────────────────────
+  let webSent = 0;
+  let webPruned = 0;
+  if (isBroadcast && isVapidConfigured()) {
+    const webSubs = await redis.smembers(WEB_PUSH_SUBS_KEY);
+    const payload = { title, body, data, ...(imageUrl ? { imageUrl } : {}) };
+    for (const subStr of (webSubs || [])) {
+      const sub = parseMember(subStr);
+      if (!sub?.endpoint) continue;
+      const r = await sendWebPush(sub, payload, { ttl: 60, member: subStr });
+      if (r.ok) webSent++;
+      else if (r.pruned) webPruned++;
+    }
   }
 
-  setTimeout(() => checkReceipts(tickets, ticketTokenMap).catch(console.error), 15_000);
-  return { sent: messages.length, tickets };
+  return { sent: messages.length, tickets, webSent, webPruned };
 }
 
 /**

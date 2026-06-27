@@ -1,0 +1,46 @@
+:host {
+  display: contents;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.46);
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  z-index: 1000;
+  animation: fade-in var(--dur-normal) var(--ease-normal);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  background-color: var(--color-surface);
+  border-top-left-radius: var(--radius-3xl);
+  border-top-right-radius: var(--radius-3xl);
+  padding: 10px 20px calc(env(safe-area-inset-bottom, 0) + 24px);
+  box-shadow: var(--shadow-overlay);
+  animation: slide-up var(--dur-normal) var(--ease-normal);
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--color-border);
+  margin: 0 auto 14px;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(40px); }
+  to   { transform: translateY(0); }
+}

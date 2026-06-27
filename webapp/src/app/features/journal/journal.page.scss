@@ -1,0 +1,139 @@
+/**
+ * Journal — visuals from src/app/journal/[date].tsx.
+ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 540px;
+  margin: 0 auto;
+  min-height: 100dvh;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0));
+  gap: 8px;
+}
+
+.icon-btn {
+  background: none;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+  text-align: center;
+}
+
+.save-btn {
+  background: none;
+  border: 0;
+  color: var(--color-tint);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--color-text-muted);
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.section-label.standalone {
+  margin-left: 4px;
+}
+
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reflection-input {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--color-text);
+  min-height: 140px;
+  outline: none;
+  resize: vertical;
+  width: 100%;
+}
+
+.reflection-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.spacer {
+  height: 12px;
+}
+
+.save-row {
+  display: flex;
+}
+
+.save-row app-button {
+  flex: 1;
+}

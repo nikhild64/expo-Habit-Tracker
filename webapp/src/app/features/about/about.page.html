@@ -1,0 +1,62 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="back-btn" (click)="back()" aria-label="Back">
+      <app-ionicon name="chevron-back" [size]="24" color="var(--color-text)" />
+    </button>
+    <h1 class="header-title">About</h1>
+    <div class="spacer" aria-hidden="true"></div>
+  </header>
+
+  <div class="content">
+    <!-- Hero -->
+    <div class="hero">
+      <div class="icon-wrap">
+        <app-ionicon name="leaf" [size]="40" color="#fff" />
+      </div>
+      <span class="app-name">Habitly</span>
+      <span class="tagline">Build streaks. Stay consistent.</span>
+      <div class="version-pill"><span class="version-text">Version {{ version }}</span></div>
+    </div>
+
+    <!-- What is Habitly -->
+    <div class="card">
+      <h2 class="card-title">What is Habitly?</h2>
+      <p class="card-body">
+        Habitly helps you build lasting habits through daily reminders, streak tracking,
+        and gentle nudges. Whether you want to drink more water, exercise, read, or meditate —
+        Habitly keeps you on track without getting in your way.
+      </p>
+    </div>
+
+    <!-- Features -->
+    <div class="card">
+      <h2 class="card-title">Features</h2>
+      @for (f of features; track f.text; let last = $last) {
+        <div class="feature-row" [class.with-border]="!last">
+          <div class="feature-icon">
+            <app-ionicon [name]="f.icon" [size]="16" color="var(--color-tint)" />
+          </div>
+          <span class="feature-text">{{ f.text }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Built with -->
+    <div class="card">
+      <h2 class="card-title">Built with</h2>
+      <p class="card-body">
+        Habitly is built with Angular 21 and Web Push. Local data is stored privately in
+        IndexedDB on your device.
+      </p>
+    </div>
+
+    <!-- Legal -->
+    <button type="button" class="legal-row" (click)="goPrivacy()">
+      <app-ionicon name="shield-checkmark-outline" [size]="18" color="var(--color-tint)" />
+      <span class="legal-text">Privacy Policy</span>
+      <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+    </button>
+
+    <p class="footer">© {{ currentYear }} Habitly. All rights reserved.</p>
+  </div>
+</section>

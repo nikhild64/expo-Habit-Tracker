@@ -1,0 +1,34 @@
+/* ============================================================================
+ * Motion helpers — short SCSS mixins around the duration + easing tokens.
+ *
+ * Reduce-motion rule is applied GLOBALLY in styles.scss (overrides every
+ * transition/animation to 0.01ms) — mirrors the `useReduceMotion()` hook used
+ * in the mobile app.
+ * ============================================================================ */
+
+@mixin transition($prop: all, $duration: var(--dur-normal), $easing: var(--ease-normal)) {
+  transition: $prop $duration $easing;
+}
+
+@mixin transition-fast($prop: all) {
+  transition: $prop var(--dur-fast) var(--ease-fast);
+}
+
+@mixin transition-slow($prop: all) {
+  transition: $prop var(--dur-slow) var(--ease-slow);
+}
+
+@mixin press-scale {
+  @include transition(transform, var(--dur-fast), var(--ease-snappy));
+  &:active:not(:disabled) {
+    transform: scale(var(--press-scale));
+  }
+}
+
+@mixin pulse {
+  @keyframes -habitly-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+  animation: -habitly-pulse 900ms ease-in-out infinite;
+}

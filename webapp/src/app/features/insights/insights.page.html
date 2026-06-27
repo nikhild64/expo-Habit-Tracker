@@ -1,0 +1,158 @@
+<section class="page">
+  <header class="header">
+    <button type="button" class="icon-btn" (click)="back()" aria-label="Back">
+      <app-ionicon name="arrow-back" [size]="22" color="var(--color-text)" />
+    </button>
+    <h1 class="title">Insights</h1>
+    <button type="button" class="icon-btn" (click)="goYearReview()" aria-label="Year in review">
+      <app-ionicon name="trophy-outline" [size]="20" color="var(--color-tint)" />
+    </button>
+  </header>
+
+  @if (visibleHabits().length === 0) {
+    <app-empty-state
+      icon="analytics-outline"
+      title="No data yet"
+      body="Track a few habits and check back here for insights."
+      [primaryAction]="{ label: 'Create habit', icon: 'add' }"
+      (primaryPressed)="newHabit()"
+    />
+  } @else {
+    <div class="content">
+      <!-- 1. Habit Strength gauge -->
+      <app-card>
+        <div class="strength-row">
+          <app-progress-ring
+            [progress]="overallStrength() / 100"
+            [size]="120"
+            [stroke]="10"
+            [color]="overallStrengthColor()"
+            [label]="overallStrength() + ''"
+          />
+          <div class="strength-text">
+            <span class="metric-heading">HABIT STRENGTH</span>
+            <span class="metric-sub">{{ overallStrengthLabel() }}</span>
+            <span class="metric-explain">A forgiving, recent-weighted score that ignores ancient missed days.</span>
+          </div>
+        </div>
+      </app-card>
+
+      <!-- 2. Window selector -->
+      <div class="window-row" role="tablist" aria-label="Time window">
+        @for (w of windowChoices; track w) {
+          <button
+            type="button"
+            class="window-chip"
+            [class.active]="windowDays() === w"
+            role="tab"
+            [attr.aria-selected]="windowDays() === w"
+            (click)="setWindow(w)"
+          >
+            {{ windowLabel(w) }}
+          </button>
+        }
+      </div>
+
+      <!-- 3. Completion-rate card -->
+      <app-card>
+        <span class="metric-heading">{{ windowHeading() }}</span>
+        <div class="big-rate-row">
+          <span class="big-rate">{{ overallRatePct() }}%</span>
+          <span class="big-rate-sub">across {{ visibleHabits().length }} habits</span>
+        </div>
+        <div class="big-bar"><div class="big-bar-fill" [style.width.%]="overallRatePct()"></div></div>
+      </app-card>
+
+      <!-- 4. Year heatmap -->
+      <h2 class="section-label">Year activity</h2>
+      <app-card>
+        <div class="hscroll">
+          <app-year-heatmap
+            [completionsByDate]="heatmapMap()"
+            [maxCount]="maxHabitCount()"
+          />
+        </div>
+        <div class="legend-row">
+          <span class="legend-text">Less</span>
+          @for (ratio of legendRatios; track $index) {
+            <span
+              class="legend-chip"
+              [style.background-color]="
+                ratio === 0 ? 'var(--color-surface-alt)' :
+                ratio < 0.5 ? 'color-mix(in srgb, var(--color-tint) 25%, transparent)' :
+                ratio < 0.75 ? 'color-mix(in srgb, var(--color-tint) 50%, transparent)' :
+                ratio < 1 ? 'color-mix(in srgb, var(--color-tint) 73%, transparent)' :
+                'var(--color-tint)'
+              "
+            ></span>
+          }
+          <span class="legend-text">More</span>
+        </div>
+      </app-card>
+
+      <!-- 5. Time of day bars -->
+      <h2 class="section-label">Time of day you complete</h2>
+      <app-card>
+        <div class="hb-wrap">
+          <div class="hb-row">
+            @for (h of hourIndices; track h) {
+              <div class="hb-col">
+                <div
+                  class="hb-bar"
+                  [style.height.px]="hourBarHeight(hourDistribution()[h])"
+                  [style.background-color]="hourBarColor(hourDistribution()[h])"
+                ></div>
+              </div>
+            }
+          </div>
+          <div class="hb-labels">
+            @for (h of axisLabels; track h) {
+              <span class="hb-label" [style.left.%]="(h / 23) * 100">{{ hourAxisLabel(h) }}</span>
+            }
+          </div>
+        </div>
+      </app-card>
+
+      <!-- 6. Per-habit strength -->
+      <h2 class="section-label">Per-habit strength</h2>
+      <app-card>
+        <div class="strength-list">
+          @for (row of strengthRows(); track row.habit.id) {
+            <button type="button" class="sr-row" (click)="openHabit(row.habit.id)">
+              <span class="sr-icon" [style.background-color]="row.habit.color">
+                <app-ionicon [name]="row.habit.icon" [size]="16" color="#fff" />
+              </span>
+              <span class="sr-name">{{ row.habit.name }}</span>
+              <span class="sr-bar-track">
+                <span class="sr-bar-fill"
+                  [style.width.%]="row.strength"
+                  [style.background-color]="row.color">
+                </span>
+              </span>
+              <span class="sr-score" [style.color]="row.color">{{ row.strength }}</span>
+            </button>
+          }
+        </div>
+      </app-card>
+
+      <!-- 7. Correlations -->
+      @if (correlations().length > 0) {
+        <h2 class="section-label">Patterns we noticed</h2>
+        <app-card>
+          <div class="corr-list">
+            @for (c of correlations(); track $index) {
+              <div class="corr-row">
+                <span class="corr-dot">
+                  <app-ionicon name="link-outline" [size]="12" color="#fff" />
+                </span>
+                <p class="corr-text">
+                  You complete <strong>{{ c.bName }}</strong> {{ liftPct(c.lift) }}% more often on days you complete <strong>{{ c.aName }}</strong>
+                </p>
+              </div>
+            }
+          </div>
+        </app-card>
+      }
+    </div>
+  }
+</section>

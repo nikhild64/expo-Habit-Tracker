@@ -1,0 +1,44 @@
+/* ============================================================================
+ * Misc shared SCSS mixins (glass, focus ring, safe-area padding).
+ * ============================================================================ */
+
+@mixin focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--color-tint);
+    outline-offset: 2px;
+  }
+}
+
+/* Glass tab bar / glass card surface — backdrop blur + saturation. */
+@mixin glass($overlay: var(--color-tab-overlay)) {
+  background-color: $overlay;
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+@mixin safe-area-bottom($extra: 0) {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0) + #{$extra});
+}
+
+@mixin safe-area-top($extra: 0) {
+  padding-top: calc(env(safe-area-inset-top, 0) + #{$extra});
+}
+
+/* 1px hairline along the top edge of an element.
+ *
+ * Implemented as an inset box-shadow rather than a ::before pseudo with
+ * `position: absolute`, because the latter forced consumers to be
+ * `position: relative` — which silently overrode `position: fixed` on the
+ * glass tab bar and caused it to scroll with the page (regression). The
+ * inset shadow is layout-agnostic, paints on top of the element's
+ * background (so it composites correctly on top of the glass overlay),
+ * and doesn't trigger any pseudo-element layout cost. */
+@mixin hairline-top($color: var(--color-tab-border)) {
+  box-shadow: inset 0 1px 0 $color;
+}
+
+@mixin square($size) {
+  width: $size;
+  height: $size;
+}

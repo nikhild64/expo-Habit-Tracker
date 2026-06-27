@@ -1,0 +1,54 @@
+@use '../../styles/motion' as m;
+@use '../../styles/mixins' as x;
+
+:host {
+  display: block;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  gap: 12px;
+}
+
+.btn {
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  @include x.focus-ring;
+  @include m.press-scale;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.value-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.value {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--color-text);
+}
+
+.unit {
+  font-size: 12px;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,380 @@
+@if (!habit()) {
+  <div class="page">
+    <div class="not-found">
+      <p class="not-found-text">Habit not found.</p>
+      <button type="button" class="back-link" (click)="goBack()">Go back</button>
+    </div>
+  </div>
+} @else {
+  @let h = habit()!;
+  <div class="page">
+    <!-- ── Header ─────────────────────────────────────────────────────── -->
+    <header class="header">
+      <button type="button" class="back-btn" aria-label="Back" (click)="goBack()">
+        <app-ionicon name="arrow-back" [size]="22" />
+      </button>
+      <button type="button" class="edit-btn" (click)="edit()">Edit</button>
+    </header>
+
+    <div class="content">
+      <!-- Identity -->
+      <div class="identity">
+        <div class="identity-badge" [style.background-color]="h.color">
+          <app-ionicon [name]="h.icon" [size]="40" color="#fff" />
+        </div>
+        <h2 class="identity-name">{{ h.name }}</h2>
+        <p class="identity-freq">{{ frequencyFull() }}</p>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-box">
+          <app-ionicon name="flame" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value">{{ h.streak }}</span>
+          <span class="stat-label">Current streak</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+          <app-ionicon name="trophy-outline" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value">{{ h.bestStreak }}</span>
+          <span class="stat-label">Best streak</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+          <app-ionicon name="calendar-outline" [size]="18" color="var(--color-text-muted)" />
+          <span class="stat-value small">{{ createdDate() }}</span>
+          <span class="stat-label">Started</span>
+        </div>
+      </div>
+
+      <!-- Paused banner -->
+      @if (h.status === 'paused') {
+        <div class="paused-banner">
+          <app-ionicon name="pause-circle" [size]="16" color="#EA580C" />
+          <span class="paused-banner-text">
+            Habit paused — notifications and streak tracking are suspended.
+          </span>
+        </div>
+      }
+
+      <!-- Mark Done -->
+      <button
+        type="button"
+        class="done-btn"
+        [class.is-done]="done()"
+        [disabled]="done() || h.status === 'paused'"
+        (click)="markDone()"
+      >
+        <app-ionicon
+          [name]="done() ? 'checkmark-circle' : 'checkmark-circle-outline'"
+          [size]="22"
+          [color]="done() ? 'var(--color-done)' : '#fff'"
+        />
+        <span>{{ done() ? 'Done for today' : 'Mark as done today' }}</span>
+      </button>
+
+      <!-- Streak callout -->
+      @if (h.streak > 1) {
+        <div class="streak-callout">
+          <app-ionicon name="flame" [size]="16" color="var(--color-streak)" />
+          <span class="streak-callout-text">
+            {{ h.streak }}-day streak — keep it up!
+          </span>
+        </div>
+      }
+
+      <!-- Freeze callout -->
+      @if (freezeCallout(); as text) {
+        <div class="freeze-callout">
+          <app-ionicon name="snow-outline" [size]="16" color="#3B82F6" />
+          <span class="freeze-callout-text">{{ text }}</span>
+        </div>
+      }
+
+      <!-- Statistics -->
+      <h3 class="section-label">Statistics</h3>
+      @if (h.completions.length >= 3 && stats(); as s) {
+        <div class="stats-section">
+          <div class="rate-grid">
+            <div class="rate-cell">
+              <span class="rate-pct">{{ s.rate7d * 100 | number:'1.0-0' }}%</span>
+              <div class="rate-track">
+                <div
+                  class="rate-fill"
+                  [style.width.%]="(s.rate7d * 100) > 4 ? (s.rate7d * 100) : 4"
+                  [style.background-color]="h.color"
+                ></div>
+              </div>
+              <span class="rate-label">7 days</span>
+            </div>
+            <div class="rate-cell">
+              <span class="rate-pct">{{ s.rate30d * 100 | number:'1.0-0' }}%</span>
+              <div class="rate-track">
+                <div
+                  class="rate-fill"
+                  [style.width.%]="(s.rate30d * 100) > 4 ? (s.rate30d * 100) : 4"
+                  [style.background-color]="h.color"
+                ></div>
+              </div>
+              <span class="rate-label">30 days</span>
+            </div>
+            <div class="rate-cell">
+              <span class="rate-pct">{{ s.rate90d * 100 | number:'1.0-0' }}%</span>
+              <div class="rate-track">
+                <div
+                  class="rate-fill"
+                  [style.width.%]="(s.rate90d * 100) > 4 ? (s.rate90d * 100) : 4"
+                  [style.background-color]="h.color"
+                ></div>
+              </div>
+              <span class="rate-label">90 days</span>
+            </div>
+          </div>
+
+          <div class="stats-divider"></div>
+
+          <div class="metrics-row">
+            <div class="metric-cell">
+              <span class="metric-value">{{ s.total }}</span>
+              <span class="metric-label">Total</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-value">{{ s.bestDay ?? '—' }}</span>
+              <span class="metric-label">Best day</span>
+            </div>
+            <div class="metric-cell">
+              <div class="momentum-row">
+                <span class="metric-value" [style.color]="momentumColor()">
+                  {{ s.momentum }}
+                </span>
+                <span class="momentum-max">/100</span>
+              </div>
+              <span class="metric-label">Momentum</span>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="stats-section empty">
+          <app-ionicon name="stats-chart-outline" [size]="22" color="var(--color-text-muted)" />
+          <span class="empty-stats-text">
+            Track for a few more days to unlock statistics
+          </span>
+        </div>
+      }
+
+      <!-- Smart Reminder banner -->
+      @if (reminderSuggestion(); as sug) {
+        <button type="button" class="reminder-banner" (click)="applySmartReminder()">
+          <div class="reminder-icon">
+            <app-ionicon name="bulb-outline" [size]="18" color="#7C3AED" />
+          </div>
+          <div style="flex: 1">
+            <p class="reminder-title">Smarter reminder time available</p>
+            <p class="reminder-body">
+              You complete this habit {{ sug.suggestedRate * 100 | number:'1.0-0' }}%
+              when done by {{ sug.suggestedLabel }}, vs
+              {{ sug.currentRate * 100 | number:'1.0-0' }}% at your current
+              {{ sug.currentLabel }} reminder. Tap to update.
+            </p>
+          </div>
+          <app-ionicon name="chevron-forward" [size]="14" color="#7C3AED" />
+        </button>
+      }
+
+      <!-- Streak History -->
+      <h3 class="section-label">Streak History</h3>
+      <div class="calendar">
+        <div class="cal-header">
+          <button
+            type="button"
+            class="cal-nav"
+            aria-label="Previous month"
+            [disabled]="isCreatedMonth()"
+            (click)="navPrev()"
+          >
+            <app-ionicon name="chevron-back" [size]="16" />
+          </button>
+          <span class="cal-title">{{ calendarTitle() }}</span>
+          <button
+            type="button"
+            class="cal-nav"
+            aria-label="Next month"
+            [disabled]="isCurrentMonth()"
+            (click)="navNext()"
+          >
+            <app-ionicon name="chevron-forward" [size]="16" />
+          </button>
+        </div>
+
+        <div class="cal-row">
+          @for (d of dowLabels; track $index) {
+            <span class="cal-dow">{{ d }}</span>
+          }
+        </div>
+
+        @for (week of weeks(); track $index) {
+          <div class="cal-row">
+            @for (cell of week; track cell.key) {
+              <div class="cal-cell">
+                @if (cell.day !== null) {
+                  <div
+                    class="day-circle"
+                    [class.today]="cell.isToday"
+                    [class.completed]="cell.isCompleted"
+                    [style.background-color]="cell.isCompleted ? h.color : null"
+                  >
+                    <span class="day-text">{{ cell.day }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <div class="cal-legend">
+          <div class="legend-item">
+            <span class="legend-dot" [style.background-color]="h.color"></span>
+            <span class="legend-text">Completed</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot today"></span>
+            <span class="legend-text">Today</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Journal -->
+      @if (h.completions.length > 0) {
+        <h3 class="section-label">Journal</h3>
+        <div class="journal-card">
+          @for (entry of journalEntries(); track entry.dateKey) {
+            <button
+              type="button"
+              class="journal-entry"
+              (click)="openNoteEdit(entry.dateKey)"
+            >
+              <span
+                class="journal-dot"
+                [style.background-color]="entry.hasNote ? h.color : 'var(--color-border)'"
+              ></span>
+              <div class="journal-body">
+                <span class="journal-date">{{ entry.displayDate }}</span>
+                <span
+                  class="journal-note"
+                  [class.empty]="!entry.hasNote"
+                >
+                  {{ entry.note || 'Tap to add a note…' }}
+                </span>
+              </div>
+              <app-ionicon name="create-outline" [size]="16" color="var(--color-text-muted)" />
+            </button>
+          }
+        </div>
+      }
+
+      <!-- Actions -->
+      <h3 class="section-label">Actions</h3>
+      <div class="actions-card">
+        @if (h.status === 'active') {
+          <button type="button" class="action-row" (click)="confirmPause()">
+            <div class="action-icon" style="background-color: #FFF7ED">
+              <app-ionicon name="pause-circle-outline" [size]="18" color="#EA580C" />
+            </div>
+            <div class="action-body">
+              <span class="action-label">Pause Habit</span>
+              <span class="action-sub">Suspend notifications, freeze streak</span>
+            </div>
+            <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+          </button>
+        }
+        @if (h.status === 'paused') {
+          <button type="button" class="action-row" (click)="resume()">
+            <div class="action-icon" style="background-color: var(--color-done-light)">
+              <app-ionicon name="play-circle-outline" [size]="18" color="var(--color-done)" />
+            </div>
+            <div class="action-body">
+              <span class="action-label">Resume Habit</span>
+              <span class="action-sub">Restore notifications and tracking</span>
+            </div>
+            <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+          </button>
+        }
+
+        @if (h.status !== 'archived') {
+          <button type="button" class="action-row" (click)="confirmArchive()">
+            <div class="action-icon" style="background-color: var(--color-surface-alt)">
+              <app-ionicon name="archive-outline" [size]="18" color="var(--color-text-secondary)" />
+            </div>
+            <div class="action-body">
+              <span class="action-label">Archive Habit</span>
+              <span class="action-sub">Hide it, keep history intact</span>
+            </div>
+            <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+          </button>
+        } @else {
+          <button type="button" class="action-row" (click)="restoreFromArchive()">
+            <div class="action-icon" style="background-color: var(--color-tint-light)">
+              <app-ionicon name="refresh-circle-outline" [size]="18" color="var(--color-tint)" />
+            </div>
+            <div class="action-body">
+              <span class="action-label">Restore Habit</span>
+              <span class="action-sub">Make it active again</span>
+            </div>
+            <app-ionicon name="chevron-forward" [size]="14" color="var(--color-text-muted)" />
+          </button>
+        }
+
+        <button type="button" class="action-row" (click)="confirmDelete()">
+          <div class="action-icon" style="background-color: var(--color-danger-light)">
+            <app-ionicon name="trash-outline" [size]="18" color="var(--color-danger)" />
+          </div>
+          <div class="action-body">
+            <span class="action-label danger">Delete Habit</span>
+            <span class="action-sub">Permanently remove all data</span>
+          </div>
+          <app-ionicon name="chevron-forward" [size]="14" color="var(--color-danger)" />
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Note edit sheet ──────────────────────────────────────────────── -->
+<app-bottom-sheet
+  [visible]="noteEdit() !== null"
+  [snapPoints]="[0.55]"
+  (closed)="closeNoteEdit()"
+>
+  <div class="note-body">
+    <div class="note-header">
+      <app-ionicon name="journal-outline" [size]="20" color="var(--color-tint)" />
+      <h3 class="note-title">{{ noteSheetTitle() }}</h3>
+    </div>
+    <textarea
+      class="note-textarea"
+      placeholder="How did it go? Any thoughts…"
+      [value]="noteEdit()?.text ?? ''"
+      (input)="onNoteInput($event)"
+      autofocus
+    ></textarea>
+    <div class="note-actions">
+      <button type="button" class="note-save-btn" (click)="saveNote()">Save</button>
+      <button type="button" class="note-skip-btn" (click)="closeNoteEdit()">Discard</button>
+    </div>
+  </div>
+</app-bottom-sheet>
+
+<!-- ── Confirmation modal ───────────────────────────────────────────── -->
+@if (confirmConfig(); as cfg) {
+  <app-confirmation
+    [visible]="true"
+    [title]="cfg.title"
+    [message]="cfg.message"
+    [icon]="cfg.icon"
+    [iconColor]="cfg.iconColor"
+    [confirmLabel]="cfg.confirmLabel"
+    [destructive]="cfg.destructive"
+    (closed)="closeConfirm()"
+    (confirmed)="runConfirm()"
+  />
+}

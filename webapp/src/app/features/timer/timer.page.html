@@ -1,0 +1,87 @@
+@if (!habit()) {
+  <div class="page">
+    <div class="not-found">
+      <p class="not-found-title">Habit not found</p>
+      <button type="button" class="back-link" (click)="goBack()">Go back</button>
+    </div>
+  </div>
+} @else {
+  @let h = habit()!;
+  <div class="page">
+    <header class="header">
+      <button
+        type="button"
+        class="close-btn"
+        aria-label="Close timer"
+        (click)="goBack()"
+      >
+        <app-ionicon name="chevron-down" [size]="28" />
+      </button>
+      <div class="mode-wrap">
+        <span class="mode-label">{{ modeLabel() }}</span>
+      </div>
+      <span class="header-spacer"></span>
+    </header>
+
+    <div class="body">
+      <h2 class="habit-name">{{ h.name }}</h2>
+      <p class="cycle-label">{{ cycleLabel() }}</p>
+
+      <div class="ring-wrap">
+        <app-progress-ring
+          [progress]="sessionProgress()"
+          [size]="260"
+          [stroke]="12"
+          [color]="h.color"
+          trackColor="var(--color-surface-alt)"
+        />
+        <div class="ring-inner">
+          <span class="time-main">{{ timeLabel() }}</span>
+          <span class="time-sub">Remaining</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button
+          type="button"
+          class="icon-btn-lg"
+          aria-label="Reset"
+          (click)="reset()"
+        >
+          <app-ionicon name="refresh" [size]="22" color="var(--color-text-secondary)" />
+        </button>
+        <button
+          type="button"
+          class="play-btn"
+          [style.background-color]="h.color"
+          [attr.aria-label]="running() ? 'Pause' : 'Start'"
+          (click)="toggleRunning()"
+        >
+          <app-ionicon [name]="running() ? 'pause' : 'play'" [size]="38" color="#fff" />
+        </button>
+        <button
+          type="button"
+          class="icon-btn-lg"
+          aria-label="Switch mode"
+          (click)="flipMode()"
+        >
+          <app-ionicon name="play-skip-forward" [size]="20" color="var(--color-text-secondary)" />
+        </button>
+      </div>
+
+      <div class="today-card">
+        <div class="today-row">
+          <span class="today-label">Today</span>
+          <span class="today-value">{{ todayLabel() }}</span>
+        </div>
+        <div class="today-track">
+          <div
+            class="today-fill"
+            [style.width]="todayProgressPct()"
+            [style.background-color]="h.color"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </div>
+}
