@@ -4,7 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build && node scripts/append-push-worker.mjs",
+    "postinstall": "node scripts/stub-expo-tsconfig.mjs",
+    "build": "node scripts/stub-expo-tsconfig.mjs && ng build && node scripts/append-push-worker.mjs",
     "build:dev": "ng build --configuration development",
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
