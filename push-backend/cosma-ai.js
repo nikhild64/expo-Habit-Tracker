@@ -186,34 +186,71 @@ Output JSON only: { "text": "<full reading as one string, use \\n for paragraphs
 function rashifalSystemPrompt(language) {
   return `${SYSTEM_BASE}
 
-Generate today's daily rashifal for the user. 100-130 words, no fluff, end with one actionable insight. Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
+Generate today's personalized daily rashifal grounded in the user's natal chart AND today's transits for the date given. Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
 
-Output JSON: {
-  "body": "<the reading>",
-  "lucky": {
-    "color": "<one color name>",
-    "number": <1-9>,
-    "direction": "<N|S|E|W|NE|NW|SE|SW>",
-    "avoid": "<a 2-3 hour window today, e.g. '4-6 PM'>"
-  }
+Structure:
+- "summary": 2-3 sentences for the home screen (concise hook + one actionable insight).
+- "body": 120-160 word overview tying moon sign, current dasha, and today's sky together.
+- "sectors": each 70-100 words, cite specific planets/houses from THEIR chart:
+  - career: work, reputation, 10th house themes
+  - love: relationships, Venus/7th house
+  - health: body, routines, 6th house / Moon
+  - money: finances, 2nd/11th house
+  - family: home, parents, 4th house
+- "lucky": color name, number 1-9, direction, avoid window (2-3 hours today)
+
+No absolutes ("always", "never"). Not medical/legal/financial advice.
+
+Output JSON only:
+{
+  "summary": "...",
+  "body": "...",
+  "sectors": { "career": "...", "love": "...", "health": "...", "money": "...", "family": "..." },
+  "lucky": { "color": "...", "number": 3, "direction": "East", "avoid": "4-6 PM" }
 }`;
 }
 
-function reportSystemPrompt(language) {
+const REPORT_SKU_FOCUS = {
+  cosma_report_birthchart: 'Full birth-chart deep-dive — all life domains equally.',
+  cosma_report_yearahead: '12-month forecast — transits, dasha periods, month-by-month highlights.',
+  cosma_report_career: 'Career report — 10th house, Saturn, Sun, Mercury, dasha for profession and reputation.',
+  cosma_report_marriage: 'Marriage timing — 7th house, Venus, Jupiter, Navamsa themes, partnership windows.',
+  cosma_report_love: 'Love & relationships — Venus, Moon, 5th and 7th houses, emotional patterns.',
+  cosma_report_health: 'Health — 6th house, Moon, Mars, Saturn, routines and vitality cycles.',
+  cosma_report_wealth: 'Wealth — 2nd, 11th houses, Jupiter, Venus, income and savings patterns.',
+  cosma_report_bundle: 'Comprehensive bundle — cover all domains with extra depth in each section.',
+};
+
+function reportSystemPrompt(language, sku) {
+  const focus = REPORT_SKU_FOCUS[sku] || 'Personalized Vedic birth-chart report.';
   return `${SYSTEM_BASE}
 
-Generate a deep-dive birth chart report with 8 sections, ~150-200 words each. Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
+Generate a paid deep-dive report. Focus: ${focus}
+Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
 
-Output JSON: {
+Each of the 8 sections must be 200-280 words, cite specific planets/signs/houses from the user's chart, include practical guidance (not vague platitudes). Reference current Mahadasha and Antardasha throughout.
+
+Sections:
+- glance: chart headline + dasha snapshot
+- sunMoonAsc: Sun, Moon, Ascendant in depth
+- planets: all 9 grahas by sign, house, retrograde
+- houses: 12 houses with lords and themes
+- dasha: Mahadasha + Antardasha meaning and timing
+- strengths: yogas and benefic placements
+- watchouts: challenging placements and how to work with them
+- forecast: 12-month outlook for this report's theme
+
+Output JSON only:
+{
   "sections": {
-    "glance": "Your chart at a glance — sun/moon/asc trio + current dasha",
-    "sunMoonAsc": "Sun, Moon, Ascendant in detail",
-    "planets": "Each planet by sign and house",
-    "houses": "The 12 houses and their lords",
-    "dasha": "Current Mahadasha + Antardasha period",
-    "strengths": "Where your chart is strong",
-    "watchouts": "Where to move with care",
-    "forecast": "12-month forecast highlights"
+    "glance": "...",
+    "sunMoonAsc": "...",
+    "planets": "...",
+    "houses": "...",
+    "dasha": "...",
+    "strengths": "...",
+    "watchouts": "...",
+    "forecast": "..."
   }
 }`;
 }
@@ -311,10 +348,20 @@ export function mountCosmaAiRoutes(app, { redis }) {
       const out = await callGemini({
         system: rashifalSystemPrompt(language),
         user: userBlock,
-        maxTokens: 500,
+        maxTokens: 1800,
       });
+      const sectors =
+        out.sectors && typeof out.sectors === 'object' ? out.sectors : {};
       return res.json({
-        body: sanitize(out.body || ''),
+        summary: sanitize(out.summary || out.body || ''),
+        body: sanitize(out.body || out.summary || ''),
+        sectors: {
+          career: typeof sectors.career === 'string' ? sanitize(sectors.career) : '',
+          love: typeof sectors.love === 'string' ? sanitize(sectors.love) : '',
+          health: typeof sectors.health === 'string' ? sanitize(sectors.health) : '',
+          money: typeof sectors.money === 'string' ? sanitize(sectors.money) : '',
+          family: typeof sectors.family === 'string' ? sanitize(sectors.family) : '',
+        },
         lucky: out.lucky ?? null,
       });
     } catch (err) {
@@ -337,9 +384,9 @@ export function mountCosmaAiRoutes(app, { redis }) {
     try {
       const userBlock = `Report SKU: ${sku}\n\nNatal chart JSON:\n${JSON.stringify(chart)}`;
       const out = await callGemini({
-        system: reportSystemPrompt(language),
+        system: reportSystemPrompt(language, sku),
         user: userBlock,
-        maxTokens: 2500,
+        maxTokens: 8000,
         temperature: 0.6,
       });
       // Sanitize each section's text.
