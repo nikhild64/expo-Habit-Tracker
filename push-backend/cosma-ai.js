@@ -11,8 +11,9 @@
 // gracefully falls back to local templated readings — so it is safe to ship
 // any of these endpoints incrementally.
 
-import admin from 'firebase-admin';
 import { GoogleGenAI } from '@google/genai';
+import admin from 'firebase-admin';
+import { parseModelReading } from './cosma-parse-reading.js';
 
 // ── Firebase Admin (verify ID tokens from the mobile app) ────────────────────
 
@@ -177,9 +178,9 @@ Hard rules — non-negotiable:
 function chatSystemPrompt(language) {
   return `${SYSTEM_BASE}
 
-For chat: 200-350 words. End with either a reflective question OR one concrete small action. Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
+For chat: 150-280 words. End with either a reflective question OR one concrete small action. Respond in ${language === 'hi' ? 'Hindi (Devanagari script)' : 'English'}.
 
-Output JSON: { "text": "<the reading>", "citations": [{ "planet": "...", "house": <1-12> }] }`;
+Output JSON only: { "text": "<full reading as one string, use \\n for paragraphs>", "citations": [{ "planet": "Saturn", "house": 10 }] }`;
 }
 
 function rashifalSystemPrompt(language) {
@@ -235,7 +236,7 @@ async function callGemini({ system, user, maxTokens = 600, temperature = 0.7 }) 
   try {
     return JSON.parse(text);
   } catch {
-    return { text };
+    return parseModelReading(text);
   }
 }
 
@@ -273,11 +274,15 @@ export function mountCosmaAiRoutes(app, { redis }) {
       const out = await callGemini({
         system: chatSystemPrompt(language),
         user: userBlock,
-        maxTokens: 700,
+        maxTokens: 2500,
       });
+      const parsed = parseModelReading(
+        typeof out.text === 'string' ? out.text : '',
+        Array.isArray(out.citations) ? out.citations : [],
+      );
       return res.json({
-        text: sanitize(out.text || ''),
-        citations: Array.isArray(out.citations) ? out.citations : [],
+        text: sanitize(parsed.text),
+        citations: parsed.citations,
       });
     } catch (err) {
       console.error('[cosma-ai] chat error:', err.message || err);
