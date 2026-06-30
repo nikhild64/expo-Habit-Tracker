@@ -6,6 +6,8 @@ import express from 'express';
 import { Redis } from '@upstash/redis';
 import webpush from 'web-push';
 
+import { mountCosmaAiRoutes } from './cosma-ai.js';
+
 dotenv.config();
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
@@ -22,6 +24,15 @@ const WEB_REMINDERS_PREFIX  = 'habit_tracker:web_reminders:';
 // Sorted set of pending one-shot snooze fires.  Score = UTC ms timestamp,
 // member = JSON `{ subscription, payload, fireAt }`.
 const WEB_SNOOZE_QUEUE_KEY  = 'habit_tracker:web_snooze_queue';
+
+// Per-app_id namespaces (additive — see _SHARED-NOTIFICATIONS.md §2 in the
+// portfolio docs). Each new portfolio app posts
+// { token, app_id, language?, user_id? } to /register; tokens land in
+// push:tokens:<app_id> instead of TOKENS_KEY. The legacy
+// habit_tracker:push_tokens set above is untouched so Habit Tracker's
+// daily/weekly summary crons keep working exactly as before.
+const PUSH_TOKENS_PREFIX    = 'push:tokens:';
+const PUSH_META_PREFIX      = 'push:meta:';
 
 const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || null;
 const DEVICE_API_KEY = process.env.DEVICE_API_KEY || null;
@@ -378,6 +389,18 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .hidden{display:none}
 #spinner{display:none;width:15px;height:15px;border:2px solid var(--border2);border-top-color:var(--brand);border-radius:50%;animation:spin .65s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── App selector (portfolio mode) ──────────────────────── */
+.app-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 14px}
+.app-bar-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3)}
+.app-pills{display:flex;gap:8px;flex-wrap:wrap;flex:1;align-items:center}
+.app-pill{padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:all .15s;font-weight:600}
+.app-pill:hover{color:var(--text);border-color:var(--border2)}
+.app-pill.active{background:var(--brand-dim);border-color:var(--brand);color:var(--brand)}
+.app-pill-count{font-size:10px;font-weight:700;background:var(--bg);padding:2px 7px;border-radius:5px;color:var(--text3);min-width:18px;text-align:center}
+.app-pill.active .app-pill-count{background:var(--brand);color:#fff}
+.app-scope-banner{font-size:11px;color:var(--text3);margin-top:-4px;padding-left:4px}
+.app-scope-banner code{font-family:monospace;color:var(--text2);background:var(--surface2);padding:1px 6px;border-radius:4px}
 </style>
 </head>
 <body>
@@ -413,7 +436,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
       <div class="brand-icon">🔔</div>
       <div class="brand-text">
         <h1>Push Console</h1>
-        <span>Habit Tracker · Upstash · Vercel</span>
+        <span id="brand-tagline">Portfolio · Upstash · Vercel</span>
       </div>
     </div>
     <div class="header-right">
@@ -421,6 +444,16 @@ button:disabled{opacity:.35;cursor:not-allowed}
       <button class="signout-btn" onclick="signOut()">Sign Out</button>
     </div>
   </header>
+
+  <div class="app-bar">
+    <span class="app-bar-label">App</span>
+    <div id="app-pills" class="app-pills">
+      <span style="font-size:11px;color:var(--text3)">Loading…</span>
+    </div>
+  </div>
+  <div class="app-scope-banner" id="app-scope-banner">
+    Sending and counts scope to the selected app. Habit Tracker uses the legacy <code>habit_tracker:push_tokens</code> namespace; new apps use <code>push:tokens:&lt;app_id&gt;</code>.
+  </div>
 
   <div class="grid">
     <div class="card">
@@ -458,12 +491,12 @@ button:disabled{opacity:.35;cursor:not-allowed}
       </div>
     </div>
     <div class="actions">
-      <button class="btn-primary" onclick="sendCustom()">Send to All Devices</button>
+      <button class="btn-primary" id="btn-send-custom" onclick="sendCustom()">Send</button>
       <label class="toggle-row" title="Broadcasts to Expo + Web (cosmetic — selective sends still target only Expo tokens)">
         <input type="checkbox" id="notif-include-web" checked />
         <span>Web Push</span>
       </label>
-      <span class="hint">Broadcasts to Expo + Web</span>
+      <span class="hint" id="send-hint">Scopes to selected app</span>
       <div id="spinner"></div>
     </div>
   </div>
@@ -506,9 +539,9 @@ button:disabled{opacity:.35;cursor:not-allowed}
 
   <div class="section" id="tokens-section">
     <div class="section-header">
-      <span class="section-title">Registered Tokens (Expo)</span>
+      <span class="section-title">Habit Tracker Tokens (legacy pool)</span>
       <div style="display:flex;gap:8px;align-items:center">
-        <span style="font-size:11px;color:var(--text3)">No selection = send to all</span>
+        <span style="font-size:11px;color:var(--text3)">Pick tokens to target a subset · no pick = whole pool</span>
         <button class="btn-secondary btn-sm" onclick="toggleTokens()">Show</button>
       </div>
     </div>
@@ -541,6 +574,13 @@ button:disabled{opacity:.35;cursor:not-allowed}
   let webSubsVisible  = false;
   let lastTokens   = [];
   let lastWebSubs  = [];
+
+  // Portfolio mode: which app does the dashboard scope to?
+  // null  = legacy habit_tracker (the original single-app pool).
+  // non-null = a per-app pool addressed as push:tokens:<id> server-side.
+  // Persisted in localStorage so the operator's selection survives reloads.
+  let activeAppId  = localStorage.getItem('activeAppId') || null;
+  let perAppCounts = {};
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -656,15 +696,72 @@ button:disabled{opacity:.35;cursor:not-allowed}
 
   function spin(on) { document.getElementById('spinner').style.display = on ? 'block' : 'none'; }
 
+  // ── Portfolio app selector ────────────────────────────────────────────────
+
+  function activeAppLabel() {
+    return activeAppId === null ? 'Habit Tracker' : activeAppId;
+  }
+
+  function setActiveApp(appId) {
+    activeAppId = appId;
+    if (appId === null) localStorage.removeItem('activeAppId');
+    else                localStorage.setItem('activeAppId', appId);
+    renderAppPills();
+    updateActiveAppDisplay();
+    addLog('Scope → ' + activeAppLabel(), 'info');
+  }
+
+  function renderAppPills() {
+    const el = document.getElementById('app-pills');
+    const items = [{ id: null, label: 'Habit Tracker', count: perAppCounts.__legacy ?? 0 }];
+    Object.keys(perAppCounts)
+      .filter(k => k !== '__legacy')
+      .sort()
+      .forEach(id => items.push({ id, label: id, count: perAppCounts[id] }));
+    el.innerHTML = items.map(item => {
+      const isActive = activeAppId === item.id;
+      const onclick  = 'setActiveApp(' + (item.id === null ? 'null' : "'" + String(item.id).replace(/'/g, "\\\\'") + "'") + ')';
+      return '<button class="app-pill' + (isActive ? ' active' : '') +
+             '" onclick="' + onclick + '">' +
+             '<span>' + item.label + '</span>' +
+             '<span class="app-pill-count">' + item.count + '</span>' +
+             '</button>';
+    }).join('');
+  }
+
+  function updateActiveAppDisplay() {
+    const count = activeAppId === null
+      ? (perAppCounts.__legacy ?? 0)
+      : (perAppCounts[activeAppId] ?? 0);
+    document.getElementById('device-count').textContent = count;
+    document.getElementById('brand-tagline').textContent = activeAppLabel() + ' · Upstash · Vercel';
+    const btn = document.getElementById('btn-send-custom');
+    if (btn) btn.textContent = 'Send to ' + activeAppLabel() + ' (' + count + ')';
+    const hint = document.getElementById('send-hint');
+    if (hint) {
+      hint.textContent = activeAppId === null
+        ? 'Broadcasts to legacy habit_tracker + Web subs'
+        : 'Broadcasts to push:tokens:' + activeAppId;
+    }
+  }
+
   async function loadStatus() {
     spin(true);
     try {
       const res = await fetch('/status', { headers: { 'X-Admin-Key': getKey() } });
       if (!res.ok) throw new Error('Status ' + res.status);
       const data = await res.json();
-      const expoCount = data.tokens?.expo ?? data.registeredDevices ?? 0;
-      const webCount  = data.tokens?.web  ?? data.webPushSubs       ?? 0;
-      document.getElementById('device-count').textContent  = expoCount;
+      const legacyCount = data.tokens?.expo ?? data.registeredDevices ?? 0;
+      const webCount    = data.tokens?.web  ?? data.webPushSubs       ?? 0;
+      perAppCounts = { __legacy: legacyCount, ...(data.tokens?.perApp || {}) };
+      // If the persisted activeAppId no longer exists in perApp (e.g. tokens
+      // pruned), gracefully fall back to legacy.
+      if (activeAppId !== null && !(activeAppId in perAppCounts)) {
+        activeAppId = null;
+        localStorage.removeItem('activeAppId');
+      }
+      renderAppPills();
+      updateActiveAppDisplay();
       document.getElementById('web-sub-count').textContent = webCount;
       document.getElementById('summary-hour').textContent  = data.dailySummaryIST || (String(data.dailySummaryHour).padStart(2, '0') + ':00');
       document.getElementById('conn-status').innerHTML     = '<span class="dot"></span>Connected';
@@ -685,7 +782,13 @@ button:disabled{opacity:.35;cursor:not-allowed}
 
     if (!title || !body) { addLog('Title and message are required', 'err'); return; }
 
-    const target = selected.length ? selected.length + ' selected Expo device(s)' : 'all devices (Expo + Web)';
+    // Note: per-token selection ("to:" body field) currently lists legacy pool
+    // tokens only. For per-app sends, leave selection empty and rely on app_id
+    // scoping; the backend pulls from push:tokens:<app_id> instead.
+    const scope = activeAppLabel();
+    const target = selected.length
+      ? selected.length + ' selected token(s) from legacy pool'
+      : 'all devices in ' + scope;
     addLog('Sending "' + title + '" → ' + target + '…', 'info');
     spin(true);
     try {
@@ -695,6 +798,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
         data: { source: 'dashboard', ...(habitId ? { screen: '/habit', habitId } : {}) },
         ...(imgUrl ? { imageUrl: imgUrl } : {}),
         ...(selected.length ? { to: selected } : {}),
+        ...(activeAppId && !selected.length ? { app_id: activeAppId } : {}),
       };
       const res = await fetch('/send', {
         method: 'POST',
@@ -706,7 +810,8 @@ button:disabled{opacity:.35;cursor:not-allowed}
         const expoMsg = (d.sent || 0) + ' Expo';
         const webMsg  = typeof d.webSent === 'number' ? (' + ' + d.webSent + ' Web') : '';
         const pruneMsg = d.webPruned ? (' · pruned ' + d.webPruned + ' stale web sub(s)') : '';
-        addLog('Sent to ' + expoMsg + webMsg + ' ✓' + pruneMsg, 'ok');
+        const scopeMsg = d.app_id ? (' [' + d.app_id + ']') : '';
+        addLog('Sent to ' + expoMsg + webMsg + scopeMsg + ' ✓' + pruneMsg, 'ok');
       } else addLog('Failed: ' + d.error, 'err');
     } catch (e) { addLog('Network error: ' + e.message, 'err'); }
     finally { spin(false); loadStatus(); }
@@ -790,11 +895,21 @@ app.get('/status', requireAdmin, async (_req, res) => {
         ? { subId: subIdFromEndpoint(sub.endpoint), endpoint: sub.endpoint }
         : { subId: '?', endpoint: '(invalid)' };
     });
+
+    // Per-app_id pools: enumerate every push:tokens:<app_id> key and
+    // return per-app token counts. Cheap on Upstash for ≤ 100 apps.
+    const perAppKeys = (await redis.keys(`${PUSH_TOKENS_PREFIX}*`)) || [];
+    const perApp = {};
+    for (const key of perAppKeys) {
+      const id = key.slice(PUSH_TOKENS_PREFIX.length);
+      perApp[id] = await redis.scard(key);
+    }
+
     res.json({
       status: 'ok',
       registeredDevices: expoCount,
       webPushSubs: webCount,
-      tokens: { expo: expoCount, web: webCount },
+      tokens: { expo: expoCount, web: webCount, perApp },
       vapidConfigured: isVapidConfigured(),
       dailySummaryUTC:  `${String(DAILY_SUMMARY_UTC_HOUR).padStart(2,'0')}:${String(DAILY_SUMMARY_UTC_MINUTE).padStart(2,'0')} UTC`,
       dailySummaryIST:  DAILY_SUMMARY_IST,
@@ -807,24 +922,53 @@ app.get('/status', requireAdmin, async (_req, res) => {
   }
 });
 
-/** Register a device's Expo push token in Redis (persisted across restarts). */
+/**
+ * Register a device's Expo push token in Redis (persisted across restarts).
+ *
+ * Per-app routing: when `app_id` is supplied, the token lands in
+ * push:tokens:<app_id> and a metadata HASH is written to
+ * push:meta:<token>. Without `app_id` we fall back to the legacy
+ * habit_tracker:push_tokens key so existing Habit Tracker clients keep
+ * working with no code change.
+ */
 app.post('/register', requireDevice, async (req, res) => {
-  const { token } = req.body ?? {};
+  const { token, app_id, language, user_id } = req.body ?? {};
   if (!Expo.isExpoPushToken(token)) {
     return res.status(400).json({ error: 'Invalid or missing Expo push token' });
   }
+  if (app_id) {
+    const setKey = `${PUSH_TOKENS_PREFIX}${app_id}`;
+    await redis.sadd(setKey, token);
+    await redis.hset(`${PUSH_META_PREFIX}${token}`, {
+      app_id,
+      language: language ?? 'en',
+      ...(user_id ? { user_id } : {}),
+      updatedAt: Date.now(),
+    });
+    const count = await redis.scard(setKey);
+    console.log(`[register] ${app_id} · ${token} (${count} total)`);
+    return res.json({ success: true, count, app_id });
+  }
   await redis.sadd(TOKENS_KEY, token);
   const count = await redis.scard(TOKENS_KEY);
-  console.log(`[register] ${token} (${count} total)`);
+  console.log(`[register] habit_tracker · ${token} (${count} total)`);
   return res.json({ success: true, count });
 });
 
 /** Remove a token — call on logout or when a DeviceNotRegistered receipt is received. */
 app.post('/unregister', requireDevice, async (req, res) => {
-  const { token } = req.body ?? {};
+  const { token, app_id } = req.body ?? {};
+  if (app_id) {
+    const setKey = `${PUSH_TOKENS_PREFIX}${app_id}`;
+    await redis.srem(setKey, token);
+    await redis.del(`${PUSH_META_PREFIX}${token}`);
+    const count = await redis.scard(setKey);
+    console.log(`[unregister] ${app_id} · token removed (${count} remaining)`);
+    return res.json({ success: true, count, app_id });
+  }
   await redis.srem(TOKENS_KEY, token);
   const count = await redis.scard(TOKENS_KEY);
-  console.log(`[unregister] token removed (${count} remaining)`);
+  console.log(`[unregister] habit_tracker · token removed (${count} remaining)`);
   return res.json({ success: true, count });
 });
 
@@ -963,11 +1107,27 @@ app.post('/api/snooze', requireDevice, async (req, res) => {
   return res.json({ ok: true, subId, fireAt, minutes: delayMin });
 });
 
-/** Send a notification. Body: { title?, body?, data?, imageUrl?, to?: string[] } */
+/**
+ * Send a notification.
+ * Body: { title?, body?, data?, imageUrl?, to?: string[], app_id? }
+ *
+ * Token resolution:
+ *   1. `to: string[]`   — exactly those tokens (overrides app_id)
+ *   2. `app_id`         — every token in push:tokens:<app_id>
+ *   3. neither          — every token in the legacy habit_tracker:push_tokens
+ *                         (preserves current Habit Tracker cron behavior)
+ */
 app.post('/send', requireAdmin, async (req, res) => {
-  const { title = 'Hello', body = 'Test notification', data = {}, imageUrl, to } = req.body ?? {};
+  const { title = 'Hello', body = 'Test notification', data = {}, imageUrl, to, app_id } = req.body ?? {};
   try {
-    const result = await sendToAll({ title, body, data, imageUrl, targetTokens: Array.isArray(to) ? to : [] });
+    const result = await sendToAll({
+      title,
+      body,
+      data,
+      imageUrl,
+      targetTokens: Array.isArray(to) ? to : [],
+      app_id: app_id ?? null,
+    });
     if (result.sent === 0 && result.webSent === 0) {
       return res.status(400).json({ error: 'No registered devices to send to' });
     }
@@ -977,6 +1137,7 @@ app.post('/send', requireAdmin, async (req, res) => {
       webSent: result.webSent,
       webPruned: result.webPruned,
       tickets: result.tickets,
+      app_id: app_id ?? null,
     });
   } catch (e) {
     console.error('[send] Error:', e);
@@ -1164,6 +1325,9 @@ async function handleWebTick(_req, res) {
 
 app.get('/api/web-tick', requireCronOrAdmin, handleWebTick);
 
+// ── Cosma AI routes (POST /cosma/ai/{chat,rashifal,report}) ──────────────────
+mountCosmaAiRoutes(app, { redis });
+
 // ── Core helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -1177,11 +1341,17 @@ app.get('/api/web-tick', requireCronOrAdmin, handleWebTick);
  * Maps ticket IDs back to tokens so DeviceNotRegistered receipts can prune
  * Redis (Expo).  Web-push pruning is synchronous via 404/410 in `sendWebPush`.
  */
-async function sendToAll({ title, body, data, imageUrl = undefined, targetTokens = [] }) {
+async function sendToAll({ title, body, data, imageUrl = undefined, targetTokens = [], app_id = null }) {
   const isBroadcast = !targetTokens || targetTokens.length === 0;
 
   // ── Expo branch ──────────────────────────────────────────────────────────
-  const allTokens = await redis.smembers(TOKENS_KEY);
+  // Pick the broadcast pool based on app_id. When app_id is null we use the
+  // legacy habit_tracker key so existing Habit Tracker crons keep working.
+  // When app_id is set we use the per-app set written to by /register.
+  const broadcastPool = app_id
+    ? `${PUSH_TOKENS_PREFIX}${app_id}`
+    : TOKENS_KEY;
+  const allTokens = await redis.smembers(broadcastPool);
   const tokenPool = isBroadcast ? allTokens : targetTokens;
   const validTokens = (tokenPool || []).filter(t => Expo.isExpoPushToken(t));
   const messages = validTokens.map(to => ({

@@ -20,10 +20,6 @@
     {
       "path": "/api/weekly-summary",
       "schedule": "0 20 * * 0"
-    },
-    {
-      "path": "/api/web-tick",
-      "schedule": "* * * * *"
     }
   ]
 }

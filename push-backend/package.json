@@ -10,11 +10,13 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@google/genai": "^1.0.0",
     "@upstash/redis": "^1.38.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "expo-server-sdk": "^6.1.0",
     "express": "^5.2.1",
+    "firebase-admin": "^13.0.0",
     "web-push": "3.6.7"
   }
 }
