@@ -53,7 +53,7 @@ function ensureGemini() {
   return gemini;
 }
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.1-flash-lite';
 
 // ── Safety filter ────────────────────────────────────────────────────────────
 
